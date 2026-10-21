@@ -1,9 +1,10 @@
-import { spawn, execSync, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { buildOnce } from './helpers/run-cli.js';
 
 const projectDir = fileURLToPath(new URL('..', import.meta.url));
 const fixture = fileURLToPath(new URL('./fixtures/fake-codex.mjs', import.meta.url));
@@ -11,9 +12,7 @@ const cli = path.join(projectDir, 'dist/cli.js');
 const dirs: string[] = [];
 const children: ChildProcess[] = [];
 
-beforeAll(() => {
-  execSync('npm run build', { cwd: projectDir, stdio: 'pipe' });
-});
+beforeAll(buildOnce);
 
 afterEach(async () => {
   for (const child of children.splice(0)) {

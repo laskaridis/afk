@@ -136,10 +136,12 @@ Sessions run with Codex's automatic approval review. `afk` offers no full-access
 
 ## Development
 
+This project uses [pnpm](https://pnpm.io); run `pnpm install` first.
+
 ```sh
-npm run typecheck   # type-check
-npm test            # run the test suite (vitest)
-npm run build       # compile to dist/
+pnpm typecheck      # type-check
+pnpm test           # run the test suite (vitest)
+pnpm build          # compile to dist/
 ```
 
 See [specs/afk-cli-core.spec.md](specs/afk-cli-core.spec.md) for the full behavior specification.

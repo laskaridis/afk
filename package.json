@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepare": "npm run build",
+    "prepare": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
@@ -26,6 +26,7 @@
   "publishConfig": {
     "access": "public"
   },
+  "packageManager": "pnpm@9.15.1",
   "license": "MIT",
   "repository": {
     "type": "git",

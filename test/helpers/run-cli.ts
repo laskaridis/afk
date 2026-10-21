@@ -11,7 +11,7 @@ let built = false;
 
 export function buildOnce(): void {
   if (built) return;
-  execFileSync('npm', ['run', 'build'], { cwd: projectDir, stdio: 'pipe' });
+  execFileSync(path.join(projectDir, 'node_modules/.bin/tsc'), ['-p', 'tsconfig.json'], { cwd: projectDir, stdio: 'pipe' });
   built = true;
 }
 
