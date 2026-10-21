@@ -90,6 +90,15 @@ describe('main', () => {
     expect(await run.calls()).toEqual([]);
   });
 
+  it('prints help despite an invalid agent value', async () => {
+    const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
+
+    expect(await run.invoke(['--agent', 'bogus', '--help'])).toBe(0);
+    expect(run.out.join('')).toBe(HELP_TEXT);
+    expect(run.lines).toEqual([]);
+    expect(await run.calls()).toEqual([]);
+  });
+
   it('rejects invalid options before reading stdin or launching a session', async () => {
     const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
 

@@ -3,7 +3,7 @@ import { HELP_TEXT } from '../src/help.js';
 
 describe('HELP_TEXT', () => {
   it.each([
-    '--prompt-file', '--cwd', '--max-iterations', '--session-timeout',
+    '--agent <name>', '--prompt-file', '--cwd', '--max-iterations', '--session-timeout',
     '--model', '--reasoning-effort', '--help', '-h',
   ])('documents %s', (option) => {
     expect(HELP_TEXT).toContain(option);
@@ -16,5 +16,17 @@ describe('HELP_TEXT', () => {
 
   it('ends with a newline', () => {
     expect(HELP_TEXT.endsWith('\n')).toBe(true);
+  });
+
+  it('lists supported agents and the default without Codex-specific help wording', () => {
+    expect(HELP_TEXT).toContain('codex, claude (default: codex)');
+    expect(HELP_TEXT.replace('codex, claude', '').replace('(default: codex)', '')).not.toMatch(/codex/i);
+    expect(HELP_TEXT).toContain('Run a coding agent unattended');
+    expect(HELP_TEXT).toContain('Maximum number of agent session launches');
+  });
+
+  it('says model and reasoning effort pass through unchanged', () => {
+    expect(HELP_TEXT).toMatch(/--model <model>\s+Model passed to the agent unchanged for every session/);
+    expect(HELP_TEXT).toMatch(/--reasoning-effort <effort>\s+Reasoning effort passed to the agent unchanged for every session/);
   });
 });

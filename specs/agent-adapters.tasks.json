@@ -379,7 +379,7 @@
       "id": "TASK-010",
       "title": "Make help text agent-neutral and document --agent",
       "objective": "Rewrite src/help.ts so it describes 'the coding agent', documents --agent <name> with the supported names and default, and states that model/effort values pass through unchanged.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-006",
       "requirements_addressed": ["AC-004", "AC-024", "AC-022"],
       "out_of_scope": [

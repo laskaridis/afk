@@ -230,3 +230,28 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-21 17:55:52 EEST
+- Task id: TASK-010
+- What was implemented:
+  - Made CLI help agent-neutral and added registry-backed supported names and default to `--agent` documentation.
+  - Documented that model and reasoning effort values pass through unchanged.
+- Files changed:
+  - src/help.ts
+  - test/help.test.ts
+  - test/main.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/help.test.ts test/main.test.ts` failed on three help assertions for missing `--agent` and old Codex wording.
+  - GREEN: the same focused command passed 27 tests after the help change.
+  - Help tests confirm both supported names and the default, agent-neutral text outside those names, and unchanged pass-through wording for both settings.
+  - Main integration test confirms `--agent bogus --help` exits 0, prints help, emits no stderr, and starts no session.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 227 tests; `git diff --check` passed.
+  - Exit codes and other options stayed in place; task acceptance criteria were checked against the focused and full tests.
+- Learnings for future iterations:
+  - Help text now imports `agentNames()` and `DEFAULT_AGENT` directly from the registry; adding a registry entry updates the help list automatically.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
