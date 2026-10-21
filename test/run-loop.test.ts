@@ -113,17 +113,65 @@ describe('runLoop', () => {
     ]);
   });
 
+  it('prints captured stderr directly after an execution error', async () => {
+    const script = scripted([
+      { kind: 'execution-error', error: { kind: 'missing-response' }, stderrTail: ['a', 'b'] },
+      complete,
+    ]);
+    expect(await script.run()).toEqual({ kind: 'complete' });
+    expect(script.logs).toEqual([
+      '[afk] Iteration 1/3: starting agent session',
+      '[afk] Execution error: agent exited without a final response',
+      'a',
+      'b',
+      '[afk] Iteration 2/3: retrying after execution error',
+    ]);
+  });
+
+  it('prints no extra lines when an execution error has an empty or absent stderr tail', async () => {
+    for (const tail of [undefined, []]) {
+      const script = scripted([
+        { kind: 'execution-error', error: { kind: 'missing-response' }, stderrTail: tail },
+      ], { maxIterations: 1 });
+      await script.run();
+      expect(script.logs).toEqual([
+        '[afk] Iteration 1/1: starting agent session',
+        '[afk] Execution error: agent exited without a final response',
+      ]);
+    }
+  });
+
+  it('prints at most the last 20 stderr lines', async () => {
+    const tail = Array.from({ length: 30 }, (_, index) => `l${index + 1}`);
+    const script = scripted([
+      { kind: 'execution-error', error: { kind: 'missing-response' }, stderrTail: tail },
+    ], { maxIterations: 1 });
+    await script.run();
+    expect(script.logs).toEqual([
+      '[afk] Iteration 1/1: starting agent session',
+      '[afk] Execution error: agent exited without a final response',
+      ...tail.slice(-20),
+    ]);
+  });
+
   it('stops after two consecutive execution errors and reports the second', async () => {
     const first = { kind: 'missing-response' } as const;
     const second = { kind: 'invalid-response', reason: 'bad JSON' } as const;
     const script = scripted([
-      { kind: 'execution-error', error: first },
-      { kind: 'execution-error', error: second },
+      { kind: 'execution-error', error: first, stderrTail: ['first'] },
+      { kind: 'execution-error', error: second, stderrTail: ['second'] },
       complete,
     ]);
     expect(await script.run()).toEqual({ kind: 'execution-error', error: second });
     expect(script.calls).toBe(2);
-    expect(script.logs.filter(line => line.startsWith('[afk] Execution error:'))).toHaveLength(2);
+    expect(script.logs).toEqual([
+      '[afk] Iteration 1/3: starting agent session',
+      '[afk] Execution error: agent exited without a final response',
+      'first',
+      '[afk] Iteration 2/3: retrying after execution error',
+      '[afk] Execution error: agent final response is invalid: bad JSON',
+      'second',
+    ]);
   });
 
   it('resets the execution-error allowance after a valid response', async () => {

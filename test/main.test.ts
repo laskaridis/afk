@@ -95,6 +95,24 @@ describe('main', () => {
     expect(await run.calls()).toHaveLength(1);
   });
 
+  it('prints each execution error stderr tail before retry and final status', async () => {
+    const run = await setup([
+      { exitCode: 3, stderr: 'first\n' },
+      { exitCode: 4, stderr: 'second\n' },
+    ]);
+
+    expect(await run.invoke(['Prompt'])).toBe(1);
+    expect(run.lines).toEqual([
+      '[afk] Iteration 1/10: starting agent session\n',
+      '[afk] Execution error: agent exited unsuccessfully with exit code 3\n',
+      'first\n',
+      '[afk] Iteration 2/10: retrying after execution error\n',
+      '[afk] Execution error: agent exited unsuccessfully with exit code 4\n',
+      'second\n',
+      '[afk] Run stopped after a repeated execution error: agent exited unsuccessfully with exit code 4\n',
+    ]);
+  });
+
   it('runs the session in the selected workspace', async () => {
     const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
     const workspace = await mkdtemp(path.join(os.tmpdir(), 'afk-workspace-'));

@@ -263,7 +263,7 @@
       "id": "TASK-007",
       "title": "Print the stderr tail after an execution-error line",
       "objective": "Make the run loop print up to 20 captured stderr lines directly after each '[afk] Execution error: …' line.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-004",
       "requirements_addressed": ["AC-017", "AC-018", "AC-012"],
       "out_of_scope": [

@@ -158,3 +158,27 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-21 17:48:55 EEST
+- Task id: TASK-007
+- What was implemented:
+  - The run loop logs up to the last 20 captured stderr lines immediately after each execution-error line, including errors that trigger a retry.
+- Files changed:
+  - src/run-loop.ts
+  - test/run-loop.test.ts
+  - test/main.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/run-loop.test.ts` failed on missing stderr lines in three assertions.
+  - GREEN: the same command passed all 23 tests after the run-loop change.
+  - Run-loop tests verify ordered lines, absent and empty tails, a 30-line input capped at 20, and distinct tails for consecutive errors.
+  - Main integration test verifies both tails precede the final status, with no tail repeated after it.
+  - Existing response, timeout and interruption branches remain separate from the sole stderr logging branch; session tests verify those results do not carry stderr tails.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 212 tests; `git diff --check` passed.
+- Learnings for future iterations:
+  - Main writes a final status only after runLoop returns, so logging each error tail inside runLoop places it before the final status.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
