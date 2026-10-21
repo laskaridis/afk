@@ -8,6 +8,7 @@ process.on('SIGINT', onSigint);
 try {
   const code = await main(process.argv.slice(2), {
     stdin: process.stdin,
+    stdout: process.stdout,
     stderr: process.stderr,
     processCwd: process.cwd(),
     abortSignal: controller.signal,

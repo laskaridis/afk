@@ -5,6 +5,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { main } from '../src/main.js';
+import { HELP_TEXT } from '../src/help.js';
 
 const fixture = fileURLToPath(new URL('./fixtures/fake-codex.mjs', import.meta.url));
 const dirs: string[] = [];
@@ -22,14 +23,16 @@ async function setup(steps: object[]) {
   await writeFile(path.join(stateDir, 'steps.json'), JSON.stringify(steps));
   process.env.FAKE_CODEX_STATE_DIR = stateDir;
   const lines: string[] = [];
+  const out: string[] = [];
   const invoke = (argv: string[], stdinText?: string) => main(argv, {
     stdin: Object.assign(Readable.from(stdinText === undefined ? [] : [stdinText]), { isTTY: stdinText === undefined }),
+    stdout: { write: (chunk: string) => out.push(chunk) },
     stderr: { write: (chunk: string) => lines.push(chunk) },
     processCwd: stateDir,
     codex: { executable: process.execPath, leadingArgs: [fixture] },
   });
   const calls = async () => (await readdir(stateDir)).filter(name => /^call-\d+\.json$/.test(name));
-  return { stateDir, lines, invoke, calls };
+  return { stateDir, lines, out, invoke, calls };
 }
 
 describe('main', () => {
@@ -43,6 +46,17 @@ describe('main', () => {
     const call = JSON.parse(await readFile(path.join(run.stateDir, 'call-1.json'), 'utf8'));
     expect(call.stdin).toMatch(/^Implement feature X\n\n---\nInstructions from the afk harness:/m);
     expect(call.cwd).toBe(await realpath(run.stateDir));
+  });
+
+  it.each(['--help', '-h'])('prints help to stdout for %s without launching a session', async (flag) => {
+    const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
+
+    const code = await run.invoke([flag, '--max-iterations', '0'], 'unused');
+
+    expect(code).toBe(0);
+    expect(run.out.join('')).toBe(HELP_TEXT);
+    expect(run.lines).toEqual([]);
+    expect(await run.calls()).toEqual([]);
   });
 
   it('rejects invalid options before reading stdin or launching a session', async () => {

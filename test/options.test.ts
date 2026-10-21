@@ -99,4 +99,28 @@ describe('parseOptions', () => {
       rmSync(workspace, { recursive: true, force: true });
     }
   });
+
+  it.each(['--help', '-h'])('returns a help result for %s', (flag) => {
+    expect(parseOptions([flag], process.cwd())).toEqual({ ok: true, help: true });
+  });
+
+  it.each([
+    ['--help', '--bogus'],
+    ['--max-iterations', '--help'],
+    ['--model', '-h'],
+  ])('prefers help over parse errors in %j', (...argv) => {
+    expect(parseOptions(argv, process.cwd())).toEqual({ ok: true, help: true });
+  });
+
+  it('does not treat a help flag after -- as help', () => {
+    expect(parseOptions(['--', '--help'], process.cwd())).toEqual({
+      ok: true,
+      options: expect.objectContaining({ positionals: ['--help'] }),
+    });
+  });
+
+  it('prefers help over validation of other options and prompt positionals', () => {
+    expect(parseOptions(['--max-iterations', '0', '--cwd', '/nonexistent-afk-dir', '--help', 'Prompt'], process.cwd()))
+      .toEqual({ ok: true, help: true });
+  });
 });

@@ -39,6 +39,8 @@ From the project you want worked on:
 afk "Implement the feature in specs/my-feature.spec.md using specs/my-feature.tasks.json"
 ```
 
+Run `afk --help` to see all options.
+
 The prompt is yours: reference whatever specs or task files the agent should use. `afk` appends its own instructions telling Codex to use the `code` skill for one task and to reply with a machine-readable result.
 
 ## Giving `afk` a prompt
@@ -63,6 +65,7 @@ Providing none, more than one, an empty prompt, or an unreadable file is an erro
 | `--session-timeout <seconds>` | Time limit applied to each session separately | none |
 | `--model <model>` | Override the Codex model for every session | inherited from your Codex config |
 | `--reasoning-effort <effort>` | Override reasoning effort for every session | inherited from your Codex config |
+| `-h`, `--help` | Show usage, options, and exit codes, then exit | – |
 
 Counts and timeouts must be positive integers. All other Codex settings come from your existing Codex configuration; `afk` never edits it.
 

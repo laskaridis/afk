@@ -75,14 +75,22 @@ describe('runSession', () => {
   });
 
   it('reports an executable launch failure and removes its temporary directory', async () => {
-    const before = new Set(await readdir(os.tmpdir()));
-    const result = await runSession({ executable: '/nonexistent/codex-missing', leadingArgs: [], cwd: os.tmpdir(), prompt: 'x' });
-    expect(result).toMatchObject({ kind: 'execution-error', error: { kind: 'launch-failed' } });
-    if (result.kind === 'execution-error' && result.error.kind === 'launch-failed') {
-      expect(result.error.message.length).toBeGreaterThan(0);
+    // Use a private temp root so concurrently running test files can't add entries we'd mistake for leaks.
+    const isolatedTmp = await mkdtemp(path.join(os.tmpdir(), 'afk-test-tmp-'));
+    stateDirs.push(isolatedTmp);
+    const previousTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = isolatedTmp;
+    try {
+      const result = await runSession({ executable: '/nonexistent/codex-missing', leadingArgs: [], cwd: isolatedTmp, prompt: 'x' });
+      expect(result).toMatchObject({ kind: 'execution-error', error: { kind: 'launch-failed' } });
+      if (result.kind === 'execution-error' && result.error.kind === 'launch-failed') {
+        expect(result.error.message.length).toBeGreaterThan(0);
+      }
+      expect(await readdir(isolatedTmp)).toEqual([]);
+    } finally {
+      if (previousTmpdir === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previousTmpdir;
     }
-    const after = await readdir(os.tmpdir());
-    expect(after.filter(name => name.startsWith('afk-') && !before.has(name))).toEqual([]);
   });
 
   it('passes the prompt and workspace to a fresh Codex process and cleans up output', async () => {

@@ -4,10 +4,12 @@ import { resolvePrompt, readStream } from './prompt.js';
 import { buildSessionPrompt } from './session-prompt.js';
 import { runSession } from './session.js';
 import { runLoop } from './run-loop.js';
+import { HELP_TEXT } from './help.js';
 import { exitCodeFor, formatFinalStatus, formatInputError, formatOptionError } from './report.js';
 
 export interface MainIo {
   stdin: NodeJS.ReadableStream & { isTTY?: boolean };
+  stdout: { write(chunk: string): unknown };
   stderr: { write(chunk: string): unknown };
   processCwd: string;
   abortSignal?: AbortSignal;
@@ -19,6 +21,11 @@ export async function main(argv: string[], io: MainIo): Promise<number> {
   if (!parsed.ok) {
     io.stderr.write(formatOptionError(parsed.message) + '\n');
     return EXIT_CODES.usageError;
+  }
+
+  if (parsed.help) {
+    io.stdout.write(HELP_TEXT);
+    return EXIT_CODES.success;
   }
 
   const options = parsed.options;

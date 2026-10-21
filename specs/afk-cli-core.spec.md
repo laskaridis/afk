@@ -75,6 +75,7 @@ As a developer, I want a session limit and an optional session timeout, so that 
 - **AC-022:** Given no `--session-timeout`, when a session runs, then the harness imposes no session timeout. Given `--session-timeout <seconds>`, then that positive duration applies separately to each session.
 - **AC-023:** Given a configured timeout expires, when the active session is interrupted and terminated, then the harness reports the timeout and stops the entire run unsuccessfully. It does not retry or start another iteration, and it preserves existing project changes.
 - **AC-024:** Given an invalid limit or timeout, when the invocation is evaluated, then the harness reports an option error and starts no Codex session.
+- **AC-025:** Given `--help` or `-h`, when the invocation is evaluated, then the harness prints usage, options, and exit codes to standard output, exits successfully, and starts no Codex session. Help takes precedence over validation of other options and over prompt input.
 
 ### US-006: Interrupt work and continue later
 

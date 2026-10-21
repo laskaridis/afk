@@ -26,6 +26,15 @@ afterEach(async () => {
 });
 
 describe('built afk CLI launch', () => {
+  it.each(['--help', '-h'])('prints help on stdout and exits 0 for %s without launching Codex', async (flag) => {
+    const result = await run({ args: [flag], steps: [complete] });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/^Usage: afk/);
+    expect(result.stderr).toBe('');
+    expect(result.calls).toEqual([]);
+  });
+
   it('passes the original positional prompt into fresh sequential sessions', async () => {
     const result = await run({ args: ['Implement feature X'], steps: [repeat, complete] });
 

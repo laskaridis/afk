@@ -13,10 +13,13 @@ export interface CliOptions {
 }
 
 export type ParseOptionsResult =
-  | { ok: true; options: CliOptions }
+  | { ok: true; help: true }
+  | { ok: true; help?: undefined; options: CliOptions }
   | { ok: false; message: string };
 
 export function parseOptions(argv: string[], processCwd: string): ParseOptionsResult {
+  if (requestsHelp(argv)) return { ok: true, help: true };
+
   let values: Record<string, string | undefined>;
   let positionals: string[];
   try {
@@ -78,6 +81,12 @@ export function parseOptions(argv: string[], processCwd: string): ParseOptionsRe
       sessionTimeoutSeconds: timeoutValue === undefined ? undefined : Number(timeoutValue),
     },
   };
+}
+
+// Help wins over every other problem, including parse errors, so it is detected before parseArgs runs.
+function requestsHelp(argv: string[]): boolean {
+  const end = argv.indexOf('--');
+  return (end === -1 ? argv : argv.slice(0, end)).some(arg => arg === '--help' || arg === '-h');
 }
 
 function isPositiveSafeInteger(value: string): boolean {
