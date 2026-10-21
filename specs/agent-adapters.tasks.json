@@ -48,7 +48,7 @@
       "id": "TASK-002",
       "title": "Add the Claude Code adapter",
       "objective": "Create src/agents/claude.ts exporting a pure Claude adapter that builds print-mode arguments and extracts the final message from Claude's JSON stdout.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-002",
       "requirements_addressed": ["AC-006", "AC-007", "AC-008", "AC-019", "AC-021"],
       "out_of_scope": [

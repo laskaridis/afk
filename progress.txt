@@ -26,3 +26,26 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-21 17:34 EEST
+- Task id: TASK-002
+- What was implemented:
+  - Added a pure Claude adapter with print-mode JSON arguments, auto permission mode, and unchanged optional model and effort values.
+  - Classified stdout as message, missing, invalid JSON response, or Claude-reported failure; included non-empty error subtype in the failure reason.
+- Files changed:
+  - src/agents/claude.ts
+  - test/agents/claude.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/agents/claude.test.ts` failed because the adapter module did not exist.
+  - GREEN: the same command passed all 8 tests after implementation and correction of a malformed JSON test literal.
+  - Tests cover default arguments, both overrides (including explicit empty values), no full-access mode, blank stdout, invalid JSON and non-object JSON, Claude errors with and without subtype, missing results, and unchanged valid result text.
+  - `pnpm typecheck` passed; `pnpm test` passed with 17 files and 197 tests; `git diff --check` passed.
+  - All TASK-002 acceptance criteria were checked against the adapter tests and these commands; the adapter has no process or file access and does not register itself.
+- Learnings for future iterations:
+  - Claude result parsing lives entirely in the adapter; the shared runner will map its `failed` result to an execution error in TASK-005.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
