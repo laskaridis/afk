@@ -39,7 +39,7 @@ As a developer, I want each iteration to start with fresh conversation context w
   | `{"outcome":"blocked","blocker_text":"..."}` | Print the blocker and exit unsuccessfully without starting another session. |
   | `{"outcome":"fail","failure_summary":"..."}` | Surface the failure summary and start a fresh session so the skill can address the recorded follow-up work. |
 
-  `blocker_text` and `failure_summary` must be non-empty strings. `repeat` and `complete` must have no additional fields. The current contract is defined in the [code skill](../.agents/skills/code/SKILL.md).
+  `blocker_text` and `failure_summary` must be non-empty strings. `repeat` and `complete` must have no additional fields. The current contract is defined in the [code skill](https://github.com/laskaridis/skills/blob/main/skills/code/SKILL.md).
 
 - **AC-012:** Given a valid outcome, when deciding what to do next, then the harness trusts that outcome. It does not independently parse task files, select or generate tasks, inspect Git state to judge progress, run project tests, review implementation, or decide whether acceptance criteria are satisfied.
 

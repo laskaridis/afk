@@ -10,7 +10,7 @@ Leave a coding agent working on a feature while you're away from the keyboard.
 
 - Node.js 20 or newer
 - The [Codex CLI](https://github.com/openai/codex), installed and authenticated, with support for `--approve-for-me` (automatic approval review)
-- The `code` skill, discoverable by Codex in your project (this repo ships one under `.agents/skills/code`)
+- The `code` skill, discoverable by Codex in your project (available from [laskaridis/skills](https://github.com/laskaridis/skills/tree/main/skills/code))
 - A prepared workspace: the right Git branch checked out, dependencies installed, and a specification and task list for the agent to work from
 
 `afk` does not create branches, install dependencies, install skills, or log you in to Codex.
