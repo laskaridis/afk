@@ -29,6 +29,7 @@ export interface CliRunOptions {
   workspace?: string;
   timeoutMs?: number;
   pathOverride?: string;
+  agent?: string;
 }
 
 export interface StartedCli {
@@ -51,7 +52,7 @@ export async function startCli(opts: CliRunOptions): Promise<StartedCli> {
   const workspace = opts.workspace ?? path.join(root, 'workspace');
   await Promise.all([mkdir(stateDir), mkdir(binDir), ...(opts.workspace ? [] : [mkdir(workspace)])]);
   await writeFile(path.join(stateDir, 'steps.json'), JSON.stringify(opts.steps));
-  const shim = path.join(binDir, 'codex');
+  const shim = path.join(binDir, opts.agent ?? 'codex');
   await writeFile(shim, `#!/bin/sh\nexec "${process.execPath}" "${fixture}" "$@"\n`);
   await chmod(shim, 0o755);
 

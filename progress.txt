@@ -1,5 +1,6 @@
 ## Project discovery
 - Source modules use `.js` import suffixes under NodeNext; tests import their TypeScript sources through the same suffix.
+- `main()` passes the parsed adapter to every session; the test-only executable override is `io.launcher`.
 ---
 
 ## 2026-10-21 17:32:18 EEST
@@ -201,6 +202,30 @@
   - The first full test run hit the previously observed intermittent end-to-end fixture startup timeout; the rerun passed without a code change.
 - Learnings for future iterations:
   - `CliOptions.agent` is now an adapter object; TASK-009 can pass it directly to `runSession`.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:53:32 EEST
+- Task id: TASK-009
+- What was implemented:
+  - Wired the parsed agent adapter through main to every session, including retries, and renamed the test launcher override to `io.launcher`.
+  - Parameterized the CLI test shim name by agent, defaulting to Codex.
+  - Added main tests for default Codex arguments, Claude arguments on both attempts of an execution retry, unchanged model and effort overrides, and invalid-agent rejection before launch.
+- Files changed:
+  - src/main.ts
+  - test/main.test.ts
+  - test/helpers/run-cli.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/main.test.ts` failed because the renamed launcher was not wired and Claude sessions did not launch through the fixture.
+  - GREEN: the same command passed all 13 tests after wiring `options.agent` and `io.launcher`.
+  - Main tests establish each task acceptance criterion: exact leading arguments for default Codex and selected Claude, two Claude attempts with the same arguments, unchanged model and effort flags, and exit code 2 with no fixture calls for an unsupported agent.
+  - `rg -n 'io\.codex|codex\?:' src test` found no matches; `pnpm typecheck` passed; `pnpm test` passed with 18 files and 223 tests; `git diff --check` passed.
+- Learnings for future iterations:
+  - Until the Claude fixture is added, main tests can use the generic launcher override to inspect Claude arguments, but cannot assert a successful Claude protocol result.
 - Scope deviations:
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.

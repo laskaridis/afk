@@ -340,7 +340,7 @@
       "id": "TASK-009",
       "title": "Wire the selected agent through main and the session runner",
       "objective": "Make main() pass options.agent to every runSession call and rename the test-only launcher override from io.codex to io.launcher.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-001",
       "requirements_addressed": ["AC-001", "AC-002", "AC-003", "AC-005"],
       "out_of_scope": [

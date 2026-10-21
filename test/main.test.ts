@@ -29,7 +29,7 @@ async function setup(steps: object[]) {
     stdout: { write: (chunk: string) => out.push(chunk) },
     stderr: { write: (chunk: string) => lines.push(chunk) },
     processCwd: stateDir,
-    codex: { executable: process.execPath, leadingArgs: [fixture] },
+    launcher: { executable: process.execPath, leadingArgs: [fixture] },
   });
   const calls = async () => (await readdir(stateDir)).filter(name => /^call-\d+\.json$/.test(name));
   return { stateDir, lines, out, invoke, calls };
@@ -46,6 +46,37 @@ describe('main', () => {
     const call = JSON.parse(await readFile(path.join(run.stateDir, 'call-1.json'), 'utf8'));
     expect(call.stdin).toMatch(/^Implement feature X\n\n---\nInstructions from the afk harness:/m);
     expect(call.cwd).toBe(await realpath(run.stateDir));
+    expect(call.argv.slice(0, 2)).toEqual(['exec', '--approve-for-me']);
+  });
+
+  it('launches Claude with its adapter arguments and unchanged overrides on an execution retry', async () => {
+    const run = await setup([{ exitCode: 3 }, { finalMessage: '{"outcome":"complete"}' }]);
+
+    await run.invoke(['--agent', 'claude', '--model', 'claude-model', '--reasoning-effort', 'high', 'Prompt']);
+
+    expect(await run.calls()).toHaveLength(2);
+    for (const name of await run.calls()) {
+      const call = JSON.parse(await readFile(path.join(run.stateDir, name), 'utf8'));
+      expect(call.argv.slice(0, 5)).toEqual(['-p', '--output-format', 'json', '--permission-mode', 'auto']);
+      expect(call.argv.slice(-4)).toEqual(['--model', 'claude-model', '--effort', 'high']);
+    }
+  });
+
+  it('passes unchanged model and effort overrides to the default Codex adapter', async () => {
+    const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
+
+    expect(await run.invoke(['--model', 'codex-model', '--reasoning-effort', 'high', 'Prompt'])).toBe(0);
+    const call = JSON.parse(await readFile(path.join(run.stateDir, 'call-1.json'), 'utf8'));
+    expect(call.argv).toContain('codex-model');
+    expect(call.argv).toContain('model_reasoning_effort="high"');
+  });
+
+  it('rejects an unsupported agent before launching a session', async () => {
+    const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
+
+    expect(await run.invoke(['--agent', 'other', 'Prompt'])).toBe(2);
+    expect(run.lines.some(line => line.startsWith('afk: option error:'))).toBe(true);
+    expect(await run.calls()).toEqual([]);
   });
 
   it.each(['--help', '-h'])('prints help to stdout for %s without launching a session', async (flag) => {
