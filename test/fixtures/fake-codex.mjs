@@ -28,8 +28,6 @@ if (typeof step.stdout === 'string') process.stdout.write(step.stdout);
 if (step.ignoreSigint === true) process.on('SIGINT', () => {});
 if (typeof step.sleepMs === 'number') await new Promise(resolve => setTimeout(resolve, step.sleepMs));
 if (typeof step.finalMessage === 'string') {
-  const index = argv.indexOf('--output-last-message');
-  if (index < 0 || !argv[index + 1]) throw new Error('Missing output path');
-  await writeFile(argv[index + 1], step.finalMessage);
+  process.stdout.write(step.finalMessage + '\n');
 }
 process.exit(step.exitCode ?? 0);

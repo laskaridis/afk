@@ -174,7 +174,7 @@
       "id": "TASK-005",
       "title": "Run sessions through an adapter with captured stdout",
       "objective": "Refactor src/session.ts to take an AgentAdapter, capture stdout instead of inheriting it, extract the final message via the adapter, and stop using temporary files.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-005",
       "requirements_addressed": ["AC-010", "AC-013", "AC-014", "AC-020", "AC-008"],
       "out_of_scope": [

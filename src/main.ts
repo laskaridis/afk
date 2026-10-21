@@ -1,4 +1,5 @@
 import { EXIT_CODES } from './exit-codes.js';
+import { codexAdapter } from './agents/codex.js';
 import { parseOptions } from './options.js';
 import { resolvePrompt, readStream } from './prompt.js';
 import { buildSessionPrompt } from './session-prompt.js';
@@ -51,6 +52,7 @@ export async function main(argv: string[], io: MainIo): Promise<number> {
       abortSignal: io.abortSignal,
     },
     () => runSession({
+      agent: codexAdapter,
       executable: io.codex?.executable ?? 'codex',
       leadingArgs: io.codex?.leadingArgs ?? [],
       cwd: options.cwd,

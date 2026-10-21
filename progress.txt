@@ -99,3 +99,33 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-21 17:43:10 EEST
+- Task id: TASK-005
+- What was implemented:
+  - Refactored the session runner to launch through an AgentAdapter, capture stdout, classify extracted messages, and eliminate temporary response files.
+  - Kept Codex as the temporary main wiring until agent selection is added; changed the fake Codex fixture to emit its final message on stdout.
+  - Removed the superseded Codex argument builder and its tests.
+- Files changed:
+  - src/session.ts
+  - src/main.ts
+  - src/codex-args.ts (deleted)
+  - test/codex-args.test.ts (deleted)
+  - test/fixtures/fake-codex.mjs
+  - test/session.test.ts
+  - test/e2e-launch.test.ts
+  - test/e2e-stop.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: focused session tests failed for stdout response extraction, adapter-reported failure, and absence of the output-file flag before implementation.
+  - GREEN: focused session tests passed after implementation; tests cover valid and missing responses, nonzero exits, adapter-reported invalid and failed results, timeout, interruption, stdout capture, and no temporary session directory.
+  - End-to-end tests verify agent stdout stays hidden and fixture argv has no --output-last-message flag.
+  - `pnpm typecheck` passed; `pnpm test` passed with 17 files and 202 tests; `git diff --check` passed.
+  - Checked session.ts has no filesystem, OS, or path imports and the obsolete builder file is gone. Read-only review found no completion blockers.
+- Learnings for future iterations:
+  - The shared runner now passes reasoningEffort to adapter.buildArgs as effort and calls extraction only after exit code 0.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---

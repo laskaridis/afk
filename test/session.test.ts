@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runSession } from '../src/session.js';
+import { codexAdapter } from '../src/agents/codex.js';
+import type { AgentAdapter } from '../src/agents/types.js';
 
 const fixture = fileURLToPath(new URL('./fixtures/fake-codex.mjs', import.meta.url));
 const stateDirs: string[] = [];
@@ -16,12 +17,13 @@ afterEach(async () => {
   await Promise.all(stateDirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
 });
 
-async function invoke(step: Record<string, unknown>, options: { timeoutSeconds?: number; terminationGraceMs?: number; abortSignal?: AbortSignal } = {}) {
+async function invoke(step: Record<string, unknown>, options: { timeoutSeconds?: number; terminationGraceMs?: number; abortSignal?: AbortSignal; agent?: AgentAdapter } = {}) {
   const stateDir = await mkdtemp(path.join(os.tmpdir(), 'afk-test-'));
   stateDirs.push(stateDir);
   await writeFile(path.join(stateDir, 'steps.json'), JSON.stringify([step]));
   process.env.FAKE_CODEX_STATE_DIR = stateDir;
   const result = await runSession({
+    agent: codexAdapter,
     executable: process.execPath,
     leadingArgs: [fixture],
     cwd: stateDir,
@@ -45,7 +47,7 @@ describe('runSession', () => {
     expect(result).toEqual({ kind: 'response', response });
   });
 
-  it('reports a missing final response when there is no output file', async () => {
+  it('reports a missing final response when stdout is empty', async () => {
     const { result } = await invoke({});
     expect(result).toEqual({ kind: 'execution-error', error: { kind: 'missing-response' } });
   });
@@ -69,9 +71,40 @@ describe('runSession', () => {
     } });
   });
 
-  it('does not use JSON printed to stdout as the final response', async () => {
+  it('uses JSON printed to stdout as the final response', async () => {
     const { result } = await invoke({ stdout: '{"outcome":"complete"}' });
-    expect(result).toEqual({ kind: 'execution-error', error: { kind: 'missing-response' } });
+    expect(result).toEqual({ kind: 'response', response: { outcome: 'complete' } });
+  });
+
+  it('maps adapter-reported failure to an execution error', async () => {
+    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => ({ kind: 'failed', reason: 'r' }) };
+    const { result } = await invoke({ stdout: 'anything' }, { agent });
+    expect(result).toEqual({ kind: 'execution-error', error: {
+      kind: 'exited-unsuccessfully', exitCode: 0, signal: null, reason: 'r',
+    } });
+  });
+
+  it('maps adapter-invalid output to an invalid response', async () => {
+    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => ({ kind: 'invalid', reason: 'bad JSON' }) };
+    const { result } = await invoke({ stdout: 'anything' }, { agent });
+    expect(result).toEqual({ kind: 'execution-error', error: {
+      kind: 'invalid-response', reason: 'bad JSON',
+    } });
+  });
+
+  it('creates no temporary session directory', async () => {
+    const isolatedTmp = await mkdtemp(path.join(os.tmpdir(), 'afk-test-tmp-'));
+    stateDirs.push(isolatedTmp);
+    const previousTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = isolatedTmp;
+    try {
+      const { result, stateDir } = await invoke({ finalMessage: '{"outcome":"complete"}' });
+      expect(result).toEqual({ kind: 'response', response: { outcome: 'complete' } });
+      expect(await readdir(isolatedTmp)).toEqual([path.basename(stateDir)]);
+    } finally {
+      if (previousTmpdir === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previousTmpdir;
+    }
   });
 
   it('reports an executable launch failure and removes its temporary directory', async () => {
@@ -81,7 +114,7 @@ describe('runSession', () => {
     const previousTmpdir = process.env.TMPDIR;
     process.env.TMPDIR = isolatedTmp;
     try {
-      const result = await runSession({ executable: '/nonexistent/codex-missing', leadingArgs: [], cwd: isolatedTmp, prompt: 'x' });
+      const result = await runSession({ agent: codexAdapter, executable: '/nonexistent/codex-missing', leadingArgs: [], cwd: isolatedTmp, prompt: 'x' });
       expect(result).toMatchObject({ kind: 'execution-error', error: { kind: 'launch-failed' } });
       if (result.kind === 'execution-error' && result.error.kind === 'launch-failed') {
         expect(result.error.message.length).toBeGreaterThan(0);
@@ -93,15 +126,14 @@ describe('runSession', () => {
     }
   });
 
-  it('passes the prompt and workspace to a fresh Codex process and cleans up output', async () => {
+  it('passes the prompt and workspace to a fresh Codex process without an output file', async () => {
     const { call, stateDir } = await invoke({ finalMessage: '{"outcome":"complete"}' });
     expect(call.stdin).toBe('Implement the feature');
     expect(call.cwd).toBe(await realpath(stateDir));
     expect(call.argv[0]).toBe('exec');
     expect(call.argv).toContain('--approve-for-me');
     expect(call.argv).not.toContain('resume');
-    const outputFile = call.argv[call.argv.indexOf('--output-last-message') + 1];
-    expect(existsSync(path.dirname(outputFile))).toBe(false);
+    expect(call.argv).not.toContain('--output-last-message');
   });
 
   it('times out a session that exceeds its deadline', async () => {
@@ -175,6 +207,7 @@ describe('runSession', () => {
     const stateDir = await mkdtemp(path.join(os.tmpdir(), 'afk-test-'));
     stateDirs.push(stateDir);
     const result = await runSession({
+      agent: codexAdapter,
       executable: process.execPath,
       leadingArgs: [fixture],
       cwd: stateDir,
