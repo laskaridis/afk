@@ -131,7 +131,7 @@
       "id": "TASK-004",
       "title": "Make status and error wording agent-neutral",
       "objective": "Replace every 'Codex' mention in src/report.ts with agent-neutral wording and support an agent-reported failure reason in the exited-unsuccessfully error.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-003",
       "requirements_addressed": ["AC-011", "AC-008", "AC-012"],
       "out_of_scope": [

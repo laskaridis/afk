@@ -113,7 +113,7 @@ describe('main', () => {
     const second = await setup([{ finalMessage: '{"outcome":"repeat"}' }]);
     expect(await second.invoke(['--max-iterations', '1', 'Prompt'])).toBe(1);
     expect(await second.calls()).toHaveLength(1);
-    expect(first.lines).toContain('[afk] Iteration 1/1: starting Codex session\n');
-    expect(second.lines).toContain('[afk] Iteration 1/1: starting Codex session\n');
+    expect(first.lines).toContain('[afk] Iteration 1/1: starting agent session\n');
+    expect(second.lines).toContain('[afk] Iteration 1/1: starting agent session\n');
   });
 });

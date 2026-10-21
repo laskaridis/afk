@@ -23,7 +23,7 @@ describe('runLoop', () => {
     const script = scripted([complete]);
     expect(await script.run()).toEqual({ kind: 'complete' });
     expect(script.calls).toBe(1);
-    expect(script.logs).toEqual(['[afk] Iteration 1/3: starting Codex session']);
+    expect(script.logs).toEqual(['[afk] Iteration 1/3: starting agent session']);
   });
 
   it('starts a fresh session after repeat and logs each start', async () => {
@@ -31,8 +31,8 @@ describe('runLoop', () => {
     expect(await script.run()).toEqual({ kind: 'complete' });
     expect(script.calls).toBe(2);
     expect(script.logs).toEqual([
-      '[afk] Iteration 1/3: starting Codex session',
-      '[afk] Iteration 2/3: starting Codex session',
+      '[afk] Iteration 1/3: starting agent session',
+      '[afk] Iteration 2/3: starting agent session',
     ]);
   });
 
@@ -107,8 +107,8 @@ describe('runLoop', () => {
     expect(await script.run()).toEqual({ kind: 'complete' });
     expect(script.calls).toBe(2);
     expect(script.logs).toEqual([
-      '[afk] Iteration 1/3: starting Codex session',
-      '[afk] Execution error: Codex exited without a final response',
+      '[afk] Iteration 1/3: starting agent session',
+      '[afk] Execution error: agent exited without a final response',
       '[afk] Iteration 2/3: retrying after execution error',
     ]);
   });
@@ -134,7 +134,7 @@ describe('runLoop', () => {
     ], { maxIterations: 4 });
     expect(await script.run()).toEqual({ kind: 'complete' });
     expect(script.calls).toBe(4);
-    expect(script.logs).toContain('[afk] Iteration 3/4: starting Codex session');
+    expect(script.logs).toContain('[afk] Iteration 3/4: starting agent session');
     expect(script.logs).toContain('[afk] Iteration 4/4: retrying after execution error');
   });
 

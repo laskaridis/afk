@@ -71,3 +71,31 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-21 17:38:58 EEST
+- Task id: TASK-004
+- What was implemented:
+  - Replaced Codex-specific status and execution-error wording with agent-neutral wording.
+  - Added an optional agent-reported reason to exited-unsuccessfully errors and gave it precedence in reports.
+- Files changed:
+  - src/outcomes.ts
+  - src/report.ts
+  - test/report.test.ts
+  - test/run-loop.test.ts
+  - test/main.test.ts
+  - test/e2e-stop.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/report.test.ts test/run-loop.test.ts` failed on 14 assertions for old wording and missing reason precedence.
+  - GREEN: the same command passed 44 tests after implementation.
+  - Acceptance criteria: report tests assert the exact iteration, launch, exit-code, signal, reported-reason, missing-response, invalid-response, and timeout text; they also assert reported-reason propagation through execution and final status lines.
+  - Updated main, run-loop, and end-to-end assertions for every old status string; `rg` found no `Codex` in src/report.ts, src/run-loop.ts, or src/outcomes.ts and no old status assertions in test/.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 204 tests; `git diff --check` passed.
+  - First full test run had an intermittent CLI fixture startup timeout; the CLI test passed alone and the full suite passed on rerun. Read-only implementation review found no blockers.
+- Learnings for future iterations:
+  - Agent-reported execution reasons are carried by the optional `reason` field, which the shared reporter uses before exit-code and signal fallback.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---

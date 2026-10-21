@@ -4,22 +4,23 @@ import type { ExecutionError, RunOutcome } from './outcomes.js';
 export function describeExecutionError(error: ExecutionError): string {
   switch (error.kind) {
     case 'launch-failed':
-      return `failed to launch Codex: ${error.message}`;
+      return `failed to launch agent: ${error.message}`;
     case 'exited-unsuccessfully':
+      if (error.reason !== undefined) return `agent exited unsuccessfully: ${error.reason}`;
       return error.exitCode !== null
-        ? `Codex exited unsuccessfully with exit code ${error.exitCode}`
-        : `Codex exited unsuccessfully due to signal ${error.signal}`;
+        ? `agent exited unsuccessfully with exit code ${error.exitCode}`
+        : `agent exited unsuccessfully due to signal ${error.signal}`;
     case 'missing-response':
-      return 'Codex exited without a final response';
+      return 'agent exited without a final response';
     case 'invalid-response':
-      return `Codex final response is invalid: ${error.reason}`;
+      return `agent final response is invalid: ${error.reason}`;
   }
 }
 
 export function formatIterationStart(iteration: number, maxIterations: number, isRetry: boolean): string {
   return isRetry
     ? `[afk] Iteration ${iteration}/${maxIterations}: retrying after execution error`
-    : `[afk] Iteration ${iteration}/${maxIterations}: starting Codex session`;
+    : `[afk] Iteration ${iteration}/${maxIterations}: starting agent session`;
 }
 
 export function formatExecutionError(error: ExecutionError): string {
@@ -41,7 +42,7 @@ export function formatFinalStatus(outcome: RunOutcome): string {
     case 'iteration-limit':
       return `[afk] Run stopped: reached the iteration limit of ${outcome.maxIterations} without reported completion.`;
     case 'timed-out':
-      return `[afk] Run stopped: Codex session timed out after ${outcome.timeoutSeconds} seconds.`;
+      return `[afk] Run stopped: agent session timed out after ${outcome.timeoutSeconds} seconds.`;
     case 'interrupted':
       return '[afk] Run interrupted by user.';
   }
