@@ -298,7 +298,7 @@
       "id": "TASK-008",
       "title": "Parse and validate the --agent option",
       "objective": "Add --agent to parseOptions with default 'codex' and an error listing supported names for unsupported or empty values.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-001",
       "requirements_addressed": ["AC-001", "AC-002", "AC-003", "AC-004", "AC-022"],
       "out_of_scope": [

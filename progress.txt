@@ -182,3 +182,26 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-21 17:51:31 EEST
+- Task id: TASK-008
+- What was implemented:
+  - Added `--agent` parsing, registry-backed validation, and the Codex default to `parseOptions`.
+  - Preserved help precedence over invalid agent values.
+- Files changed:
+  - src/options.ts
+  - test/options.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/options.test.ts` failed in 9 cases before parser implementation.
+  - GREEN: the same command passed all 36 tests after implementation.
+  - Tests assert the default Codex adapter, explicit Codex and Claude adapter identity, supported-name errors for unsupported, case-mismatched, whitespace-only and empty values, absent-value rejection, and help precedence.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 220 tests on rerun; `git diff --check` passed.
+  - The first full test run hit the previously observed intermittent end-to-end fixture startup timeout; the rerun passed without a code change.
+- Learnings for future iterations:
+  - `CliOptions.agent` is now an adapter object; TASK-009 can pass it directly to `runSession`.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
