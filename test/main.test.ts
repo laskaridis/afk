@@ -1,0 +1,105 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import { fileURLToPath } from 'node:url';
+import { main } from '../src/main.js';
+
+const fixture = fileURLToPath(new URL('./fixtures/fake-codex.mjs', import.meta.url));
+const dirs: string[] = [];
+const originalStateDir = process.env.FAKE_CODEX_STATE_DIR;
+
+afterEach(async () => {
+  if (originalStateDir === undefined) delete process.env.FAKE_CODEX_STATE_DIR;
+  else process.env.FAKE_CODEX_STATE_DIR = originalStateDir;
+  await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
+});
+
+async function setup(steps: object[]) {
+  const stateDir = await mkdtemp(path.join(os.tmpdir(), 'afk-main-test-'));
+  dirs.push(stateDir);
+  await writeFile(path.join(stateDir, 'steps.json'), JSON.stringify(steps));
+  process.env.FAKE_CODEX_STATE_DIR = stateDir;
+  const lines: string[] = [];
+  const invoke = (argv: string[], stdinText?: string) => main(argv, {
+    stdin: Object.assign(Readable.from(stdinText === undefined ? [] : [stdinText]), { isTTY: stdinText === undefined }),
+    stderr: { write: (chunk: string) => lines.push(chunk) },
+    processCwd: stateDir,
+    codex: { executable: process.execPath, leadingArgs: [fixture] },
+  });
+  const calls = async () => (await readdir(stateDir)).filter(name => /^call-\d+\.json$/.test(name));
+  return { stateDir, lines, invoke, calls };
+}
+
+describe('main', () => {
+  it('runs a positional prompt to completion and reports success', async () => {
+    const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
+
+    const code = await run.invoke(['Implement feature X']);
+
+    expect(code).toBe(0);
+    expect(run.lines).toContain('[afk] Run complete: the code skill reported feature completion.\n');
+    const call = JSON.parse(await readFile(path.join(run.stateDir, 'call-1.json'), 'utf8'));
+    expect(call.stdin).toMatch(/^Implement feature X\n\n---\nInstructions from the afk harness:/m);
+    expect(call.cwd).toBe(await realpath(run.stateDir));
+  });
+
+  it('rejects invalid options before reading stdin or launching a session', async () => {
+    const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
+
+    const code = await run.invoke(['--max-iterations', '0', 'Prompt'], 'unused');
+
+    expect(code).toBe(2);
+    expect(run.lines.some(line => line.startsWith('afk: option error:'))).toBe(true);
+    expect(await run.calls()).toEqual([]);
+  });
+
+  it('rejects conflicting prompt sources before launching a session', async () => {
+    const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
+
+    const code = await run.invoke(['Prompt'], 'Piped prompt');
+
+    expect(code).toBe(2);
+    expect(run.lines.some(line => line.startsWith('afk: input error:'))).toBe(true);
+    expect(await run.calls()).toEqual([]);
+  });
+
+  it('rejects a missing prompt from a terminal', async () => {
+    const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
+
+    expect(await run.invoke([])).toBe(2);
+    expect(run.lines.some(line => line.startsWith('afk: input error:'))).toBe(true);
+    expect(await run.calls()).toEqual([]);
+  });
+
+  it('reports a blocked response and exits unsuccessfully', async () => {
+    const run = await setup([{ finalMessage: '{"outcome":"blocked","blocker_text":"Provide tasks"}' }]);
+
+    expect(await run.invoke(['Prompt'])).toBe(1);
+    expect(run.lines).toContain('[afk] Run blocked: Provide tasks\n');
+    expect(await run.calls()).toHaveLength(1);
+  });
+
+  it('runs the session in the selected workspace', async () => {
+    const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
+    const workspace = await mkdtemp(path.join(os.tmpdir(), 'afk-workspace-'));
+    dirs.push(workspace);
+
+    expect(await run.invoke(['--cwd', workspace, 'Prompt'])).toBe(0);
+    const call = JSON.parse(await readFile(path.join(run.stateDir, 'call-1.json'), 'utf8'));
+    expect(call.cwd).toBe(await realpath(workspace));
+  });
+
+  it('gives a second invocation a fresh session budget', async () => {
+    const first = await setup([{ finalMessage: '{"outcome":"repeat"}' }]);
+    expect(await first.invoke(['--max-iterations', '1', 'Prompt'])).toBe(1);
+    expect(await first.calls()).toHaveLength(1);
+
+    const second = await setup([{ finalMessage: '{"outcome":"repeat"}' }]);
+    expect(await second.invoke(['--max-iterations', '1', 'Prompt'])).toBe(1);
+    expect(await second.calls()).toHaveLength(1);
+    expect(first.lines).toContain('[afk] Iteration 1/1: starting Codex session\n');
+    expect(second.lines).toContain('[afk] Iteration 1/1: starting Codex session\n');
+  });
+});

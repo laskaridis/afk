@@ -1,0 +1,38 @@
+{
+  "name": "@laskaridis/afk",
+  "version": "0.1.0",
+  "description": "Run a Codex coding agent unattended, one task per fresh session",
+  "type": "module",
+  "bin": {
+    "afk": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/laskaridis/afk.git"
+  },
+  "homepage": "https://github.com/laskaridis/afk#readme",
+  "bugs": {
+    "url": "https://github.com/laskaridis/afk/issues"
+  }
+}

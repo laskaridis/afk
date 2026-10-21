@@ -1,0 +1,994 @@
+{
+  "spec_path": "afk/specs/afk-cli-core.spec.md",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "Scaffold the afk TypeScript package with build and test tooling",
+      "objective": "Create a buildable, testable TypeScript npm package in the afk project directory with no runtime dependencies and an exit-code constants module.",
+      "status": "completed",
+      "story_addressed": "US-001",
+      "requirements_addressed": [
+        "AC-001",
+        "AC-004",
+        "AC-029"
+      ],
+      "out_of_scope": [
+        "Do not implement option parsing, prompt resolution, Codex execution, or the CLI entry point (src/cli.ts); later tasks do that.",
+        "Do not publish the package to npm.",
+        "Do not add runtime dependencies (the dependencies field must stay absent or empty).",
+        "Do not add linting, formatting, or CI configuration."
+      ],
+      "existing_context": [
+        "All file paths in this task list are relative to the afk project directory, which is the `afk/` subdirectory of the Git repository root and already contains `specs/`, `.agents/`, `.claude/`, and `skills-lock.json`.",
+        "There is no application code, package.json, or tsconfig.json yet.",
+        "Local tooling observed when the tasks were written: Node.js v22.21.0, npm, codex-cli 0.162.1."
+      ],
+      "constraints": [
+        "Run all npm commands from the afk project directory.",
+        "Use ES modules (\"type\": \"module\") and TypeScript module/moduleResolution \"NodeNext\"; relative imports in src must use the `.js` extension (for example `import { x } from './exit-codes.js'`).",
+        "Production sources live in `src/`; tests live in `test/` and are named `*.test.ts`; tests import production code as `../src/<module>.js`.",
+        "Only dev dependencies may be installed: typescript, vitest, @types/node.",
+        "Do not modify files under `specs/`, `.agents/`, `.claude/`, or `skills-lock.json` except the task list and progress bookkeeping allowed by the code skill."
+      ],
+      "implementation_guidelines": [
+        "Create package.json with: \"name\": \"afk\", \"version\": \"0.1.0\", \"description\": \"Run a Codex coding agent unattended, one task per fresh session\", \"type\": \"module\", \"bin\": { \"afk\": \"dist/cli.js\" }, \"files\": [\"dist\"], \"engines\": { \"node\": \">=20\" }, and scripts { \"build\": \"tsc -p tsconfig.json\", \"typecheck\": \"tsc -p tsconfig.json --noEmit\", \"test\": \"vitest run\" }.",
+        "Run `npm install --save-dev typescript vitest @types/node` so package-lock.json is created and the dev dependencies are recorded.",
+        "Create tsconfig.json with compilerOptions { \"target\": \"ES2022\", \"module\": \"NodeNext\", \"moduleResolution\": \"NodeNext\", \"strict\": true, \"outDir\": \"dist\", \"rootDir\": \"src\", \"esModuleInterop\": true, \"skipLibCheck\": true, \"types\": [\"node\"] } and \"include\": [\"src\"].",
+        "Create .gitignore containing the lines `node_modules/` and `dist/`.",
+        "Create src/exit-codes.ts exporting `export const EXIT_CODES = { success: 0, failure: 1, usageError: 2, interrupted: 130 } as const;`.",
+        "Create test/exit-codes.test.ts asserting each of the four EXIT_CODES values."
+      ],
+      "acceptance_criteria": [
+        "`npm run typecheck` exits with status 0.",
+        "`npm run build` exits with status 0 and produces dist/exit-codes.js.",
+        "`npm test` exits with status 0 and runs test/exit-codes.test.ts.",
+        "package.json contains the bin entry `\"afk\": \"dist/cli.js\"`, `\"type\": \"module\"`, and no non-empty `dependencies` field.",
+        "EXIT_CODES equals { success: 0, failure: 1, usageError: 2, interrupted: 130 }.",
+        "`git status --short` shows node_modules/ and dist/ as ignored (not listed as untracked)."
+      ],
+      "assumptions": [
+        "The package name `afk` is a placeholder; the spec states npm name availability is unknown and publishing is out of scope.",
+        "Exit code 2 for input/option errors and 130 for user interruption are implementation choices; the spec only requires success versus unsuccessful/interrupted termination.",
+        "Vitest resolves `.js` import specifiers to the matching `.ts` source files."
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "TASK-002",
+      "title": "Parse and validate afk command-line options",
+      "objective": "Implement a pure option parser that returns validated run options or a clear option error message for invalid flags, limits, timeouts, and working directories.",
+      "status": "completed",
+      "story_addressed": "US-005",
+      "requirements_addressed": [
+        "AC-005",
+        "AC-015",
+        "AC-020",
+        "AC-022",
+        "AC-024"
+      ],
+      "out_of_scope": [
+        "Do not decide which prompt source is used or read the prompt file or stdin; TASK-003 does that.",
+        "Do not print anything or call process.exit; return a result value instead.",
+        "Do not add options other than those listed in the guidelines (no --help, --version, or Codex argument passthrough)."
+      ],
+      "existing_context": [
+        "src/exit-codes.ts exists from TASK-001.",
+        "Node's built-in `parseArgs` from `node:util` is available; no argument-parsing library is installed or allowed."
+      ],
+      "constraints": [
+        "Create src/options.ts and test/options.test.ts only.",
+        "Use `parseArgs` from `node:util` with `strict: true` and `allowPositionals: true`.",
+        "The function must be synchronous and must not write to stdout or stderr."
+      ],
+      "implementation_guidelines": [
+        "Export `interface CliOptions { positionals: string[]; promptFile?: string; cwd: string; model?: string; reasoningEffort?: string; maxIterations: number; sessionTimeoutSeconds?: number }`.",
+        "Export `type ParseOptionsResult = { ok: true; options: CliOptions } | { ok: false; message: string }`.",
+        "Export `function parseOptions(argv: string[], processCwd: string): ParseOptionsResult`.",
+        "Declare string options: `prompt-file`, `cwd`, `model`, `reasoning-effort`, `max-iterations`, `session-timeout`.",
+        "Wrap the parseArgs call in try/catch; on a thrown error return { ok: false, message: error.message } (this covers unknown options and options missing a value).",
+        "Return all positionals unchanged in `positionals` (do not validate their count here).",
+        "max-iterations: if absent use 10; otherwise it must match /^[1-9][0-9]*$/ and be a safe integer, else return message `--max-iterations must be a positive integer, got \"<value>\"`.",
+        "session-timeout: if absent leave undefined; otherwise it must match /^[1-9][0-9]*$/ and be a safe integer, else return message `--session-timeout must be a positive integer number of seconds, got \"<value>\"`.",
+        "model and reasoning-effort: if present and `value.trim() === ''` return `--model must not be empty` or `--reasoning-effort must not be empty` respectively; otherwise pass the value through unchanged.",
+        "cwd: resolve with `path.resolve(processCwd, value ?? '.')`; use `fs.statSync` inside try/catch and require `isDirectory()`; otherwise return `--cwd \"<value>\" is not an existing directory` where <value> is the raw option value.",
+        "promptFile: pass the raw `prompt-file` value through unchanged (no existence check here).",
+        "Write tests for: defaults (no options gives maxIterations 10, cwd equal to processCwd, sessionTimeoutSeconds undefined), each valid option, `--` followed by a dash-leading prompt staying a positional, unknown option error, missing option value error, and each invalid value listed above (0, -1, 1.5, abc, empty string for numbers; empty/whitespace model and effort; non-existent and file-path cwd)."
+      ],
+      "acceptance_criteria": [
+        "parseOptions([], '/tmp-dir-that-exists') returns ok with maxIterations 10, sessionTimeoutSeconds undefined, and cwd equal to the resolved processCwd.",
+        "`--max-iterations 3` yields maxIterations 3; `--max-iterations 0`, `-1`, `1.5`, and `abc` each yield ok: false with the documented message.",
+        "`--session-timeout 30` yields sessionTimeoutSeconds 30; `--session-timeout 0` and `abc` each yield ok: false with the documented message.",
+        "`--cwd` pointing at an existing directory yields its absolute path; a missing path or a regular file yields ok: false with the documented message.",
+        "`--model gpt-x --reasoning-effort high` yields model 'gpt-x' and reasoningEffort 'high'; empty values yield ok: false.",
+        "`--unknown-flag` yields ok: false with a non-empty message.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "Session timeouts are whole seconds; fractional values are rejected as invalid.",
+        "A relative --cwd is resolved against the directory afk was started from.",
+        "Reasoning-effort values are not validated against a fixed list so that new Codex values keep working; Codex rejects unsupported values itself."
+      ],
+      "dependencies": [
+        "TASK-001"
+      ]
+    },
+    {
+      "id": "TASK-003",
+      "title": "Resolve the launch prompt from exactly one input source",
+      "objective": "Implement prompt resolution that accepts exactly one non-empty prompt source (positional argument, --prompt-file, or piped stdin) and otherwise returns a clear input error.",
+      "status": "completed",
+      "story_addressed": "US-001",
+      "requirements_addressed": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004"
+      ],
+      "out_of_scope": [
+        "Do not interpret, rewrite, or validate the prompt content (for example spec or task file references); return it unchanged.",
+        "Do not prompt the user interactively when no prompt is supplied.",
+        "Do not print anything or exit the process."
+      ],
+      "existing_context": [
+        "TASK-002 returns `positionals` and the raw `promptFile` value without validating them."
+      ],
+      "constraints": [
+        "Create src/prompt.ts and test/prompt.test.ts only.",
+        "Never combine sources and never silently ignore a non-empty source."
+      ],
+      "implementation_guidelines": [
+        "Export `interface PromptStdin { isTTY: boolean; read: () => Promise<string> }`.",
+        "Export `type ResolvePromptResult = { ok: true; prompt: string } | { ok: false; message: string }`.",
+        "Export `async function resolvePrompt(input: { positionals: string[]; promptFile?: string; processCwd: string; stdin: PromptStdin }): Promise<ResolvePromptResult>`.",
+        "Export `async function readStream(stream: NodeJS.ReadableStream): Promise<string>` that concatenates all chunks and returns them decoded as UTF-8.",
+        "Step 1: if positionals.length > 1 return message `expected a single prompt argument but received <n>; quote the prompt`.",
+        "Step 2: if stdin.isTTY is false, call stdin.read() once and keep the text; if stdin.isTTY is true never call read().",
+        "Step 3: build the list of present sources in this order: 'prompt argument' when positionals.length === 1; '--prompt-file' when promptFile !== undefined; 'stdin' when stdin is not a TTY and the stdin text has non-whitespace content.",
+        "Step 4: if more than one source is present return `multiple prompt sources provided (<names joined with \", \">); use exactly one of a prompt argument, --prompt-file, or stdin`.",
+        "Step 5: if no source is present return `no prompt provided; pass a prompt argument, --prompt-file <path>, or pipe the prompt on stdin`.",
+        "Step 6 (prompt argument): if positionals[0].trim() === '' return `prompt argument is empty`; else return it unchanged.",
+        "Step 7 (--prompt-file): resolve the path with `path.resolve(processCwd, promptFile)` and read it as UTF-8 with `fs.promises.readFile`; on error return `cannot read prompt file \"<promptFile>\": <error.message>`; if the content trims to '' return `prompt file \"<promptFile>\" is empty`; else return the content unchanged.",
+        "Step 8 (stdin): return the stdin text unchanged.",
+        "In tests, build fake PromptStdin objects (isTTY true/false and a read function returning a fixed string, with a spy proving read is not called when isTTY is true); use a temporary directory for prompt files; test readStream with `Readable.from(['a', 'b'])`."
+      ],
+      "acceptance_criteria": [
+        "A single positional 'build it' with a TTY stdin returns { ok: true, prompt: 'build it' } and stdin.read is never called.",
+        "A readable prompt file containing 'from file' with non-TTY empty stdin returns prompt 'from file'.",
+        "Non-TTY stdin text 'from stdin' with no other source returns prompt 'from stdin'.",
+        "A positional plus non-empty non-TTY stdin returns ok: false with a message naming 'prompt argument' and 'stdin'.",
+        "A positional plus --prompt-file returns ok: false with the multiple-sources message.",
+        "No sources with TTY stdin, and no sources with empty non-TTY stdin, both return the no-prompt message.",
+        "A whitespace-only positional, an empty prompt file, and a missing prompt file each return ok: false with the documented message.",
+        "Two positionals return ok: false with the single-argument message.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "Empty or whitespace-only non-TTY stdin is treated as 'not supplied', so `afk \"prompt\" < /dev/null` and use from scripts/CI work; a prompt consisting only of whitespace on stdin is therefore reported as 'no prompt provided', which is still a clear input error.",
+        "When stdin is not a TTY, afk reads it to end-of-file even if another source is given, to detect multiple sources; a caller that leaves a non-TTY stdin open without writing to it will block until it is closed.",
+        "A relative --prompt-file path is resolved against the directory afk was started from, not against --cwd."
+      ],
+      "dependencies": [
+        "TASK-001"
+      ]
+    },
+    {
+      "id": "TASK-004",
+      "title": "Build the per-session prompt from the launch prompt",
+      "objective": "Implement a pure function that appends fixed afk harness instructions to the unchanged launch prompt for every Codex session, including retries.",
+      "status": "completed",
+      "story_addressed": "US-002",
+      "requirements_addressed": [
+        "AC-008",
+        "AC-019"
+      ],
+      "out_of_scope": [
+        "Do not include any information from previous sessions, transcripts, iteration numbers, or retry state in the prompt.",
+        "Do not read task files, specification files, or progress files."
+      ],
+      "existing_context": [
+        "The code skill's response protocol is defined in .agents/skills/code/SKILL.md under 'Coding loop protocol'."
+      ],
+      "constraints": [
+        "Create src/session-prompt.ts and test/session-prompt.test.ts only.",
+        "The function output must depend only on the launch prompt argument."
+      ],
+      "implementation_guidelines": [
+        "Export `const HARNESS_INSTRUCTIONS` equal to these lines joined with '\\n': `---`, `Instructions from the afk harness:`, ``- Use the `code` skill to implement exactly one task for the feature described above.``, `- Follow the code skill's coding loop response protocol: your final message must be exactly one JSON object with an \"outcome\" of \"repeat\", \"complete\", \"blocked\", or \"fail\", with no other text.`, `- Nobody is available to answer questions or approve actions during this session.`.",
+        "Export `function buildSessionPrompt(launchPrompt: string): string` returning `${launchPrompt}\\n\\n${HARNESS_INSTRUCTIONS}`.",
+        "Test that the output starts with the exact launch prompt, ends with HARNESS_INSTRUCTIONS, mentions the `code` skill and all four outcomes, and that two calls with the same input return identical strings."
+      ],
+      "acceptance_criteria": [
+        "buildSessionPrompt('Implement specs/x.md') starts with 'Implement specs/x.md' followed by a blank line and then HARNESS_INSTRUCTIONS.",
+        "HARNESS_INSTRUCTIONS contains '`code` skill', 'exactly one task', and the strings '\"repeat\"', '\"complete\"', '\"blocked\"', '\"fail\"'.",
+        "Calling buildSessionPrompt twice with the same input returns identical output.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "The code skill is discoverable by Codex under the name `code` in the user's prepared environment (spec Assumptions)."
+      ],
+      "dependencies": [
+        "TASK-001"
+      ]
+    },
+    {
+      "id": "TASK-005",
+      "title": "Validate the code skill's final JSON response",
+      "objective": "Implement a strict parser that accepts a final assistant message only when it is a single JSON object matching one of the four code skill protocol shapes.",
+      "status": "completed",
+      "story_addressed": "US-002",
+      "requirements_addressed": [
+        "AC-010",
+        "AC-011"
+      ],
+      "out_of_scope": [
+        "Do not search for JSON inside prose, Markdown fences, or streamed activity.",
+        "Do not decide what action to take for an outcome; TASK-011 does that.",
+        "Do not read files or spawn processes."
+      ],
+      "existing_context": [
+        "The protocol is defined in .agents/skills/code/SKILL.md section 'Response': shapes {\"outcome\":\"repeat\"}, {\"outcome\":\"complete\"}, {\"outcome\":\"blocked\",\"blocker_text\":\"...\"}, {\"outcome\":\"fail\",\"failure_summary\":\"...\"}."
+      ],
+      "constraints": [
+        "Create src/protocol.ts and test/protocol.test.ts only.",
+        "The parser must be a pure synchronous function."
+      ],
+      "implementation_guidelines": [
+        "Export `type ProtocolResponse = { outcome: 'repeat' } | { outcome: 'complete' } | { outcome: 'blocked'; blockerText: string } | { outcome: 'fail'; failureSummary: string }`.",
+        "Export `type ParseResponseResult = { ok: true; response: ProtocolResponse } | { ok: false; reason: string }`.",
+        "Export `function parseProtocolResponse(text: string): ParseResponseResult`.",
+        "Trim leading and trailing whitespace, then call JSON.parse in try/catch; on failure return reason `final response is not valid JSON`.",
+        "If the parsed value is null, an array, or not of type 'object', return reason `final response is not a JSON object`.",
+        "If `outcome` is not one of 'repeat', 'complete', 'blocked', 'fail', return reason `\"outcome\" must be one of repeat, complete, blocked, fail`.",
+        "For 'repeat' and 'complete': if Object.keys(value).length !== 1 return reason `\"<outcome>\" response must not include additional fields`.",
+        "For 'blocked': require typeof blocker_text === 'string' and blocker_text.trim() !== '', else reason `\"blocked\" response requires a non-empty \"blocker_text\" string`; return { outcome: 'blocked', blockerText: blocker_text } with the original (untrimmed) string.",
+        "For 'fail': require typeof failure_summary === 'string' and failure_summary.trim() !== '', else reason `\"fail\" response requires a non-empty \"failure_summary\" string`; return { outcome: 'fail', failureSummary: failure_summary }.",
+        "Write one test per accepted shape (including surrounding whitespace/newlines) and one per rejection: prose before JSON, prose after JSON, a ```json fenced object, empty string, a JSON array, a JSON string, unknown outcome, missing outcome, repeat with an extra field, complete with an extra field, blocked without blocker_text, blocked with empty/whitespace blocker_text, blocked with numeric blocker_text, fail without failure_summary, fail with empty failure_summary, and two concatenated JSON objects."
+      ],
+      "acceptance_criteria": [
+        "'  {\"outcome\":\"repeat\"}\\n' returns { ok: true, response: { outcome: 'repeat' } }.",
+        "'{\"outcome\":\"complete\"}' returns ok with outcome 'complete'.",
+        "'{\"outcome\":\"blocked\",\"blocker_text\":\"need creds\"}' returns ok with blockerText 'need creds'.",
+        "'{\"outcome\":\"fail\",\"failure_summary\":\"tests red\"}' returns ok with failureSummary 'tests red'.",
+        "Every rejection case listed in the guidelines returns ok: false with the documented reason.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "The spec forbids extra fields only for repeat and complete; extra fields on blocked and fail responses are accepted and ignored.",
+        "A whitespace-only blocker_text or failure_summary is treated as empty."
+      ],
+      "dependencies": [
+        "TASK-001"
+      ]
+    },
+    {
+      "id": "TASK-006",
+      "title": "Build the codex exec argument list for one session",
+      "objective": "Implement a pure function that returns the exact `codex exec` arguments for a fresh non-interactive session with automatic approval review, the selected workspace, optional model and reasoning-effort overrides, and a final-message output file.",
+      "status": "completed",
+      "story_addressed": "US-003",
+      "requirements_addressed": [
+        "AC-005",
+        "AC-006",
+        "AC-009",
+        "AC-010",
+        "AC-013",
+        "AC-015"
+      ],
+      "out_of_scope": [
+        "Do not spawn processes; TASK-008 does that.",
+        "Do not add any flag not listed in the guidelines, including --sandbox, --dangerously-bypass-approvals-and-sandbox, --json, --worktree, --ephemeral, --skip-git-repo-check, --ignore-user-config, --profile, or the resume/fork subcommands.",
+        "Do not read or write Codex configuration files."
+      ],
+      "existing_context": [
+        "Installed codex-cli 0.162.1 `codex exec --help` documents: `--approve-for-me` (route approval requests through automatic review using the workspace-write sandbox), `-C, --cd <DIR>`, `-m, --model <MODEL>`, `-c, --config <key=value>` (value parsed as TOML), `-o, --output-last-message <FILE>`, and a `[PROMPT]` argument where `-` means read instructions from stdin."
+      ],
+      "constraints": [
+        "Create src/codex-args.ts and test/codex-args.test.ts only.",
+        "Use long flag names exactly as listed in the guidelines.",
+        "The prompt must not appear in the argument list; it is sent on stdin."
+      ],
+      "implementation_guidelines": [
+        "Export `interface CodexArgsInput { cwd: string; outputFile: string; model?: string; reasoningEffort?: string }`.",
+        "Export `function buildCodexArgs(input: CodexArgsInput): string[]`.",
+        "Return, in this order: 'exec', '--approve-for-me', '--cd', cwd; then '--model', model only when model is defined; then '--config', `model_reasoning_effort=${JSON.stringify(reasoningEffort)}` only when reasoningEffort is defined; then '--output-last-message', outputFile; then '-'.",
+        "Tests: exact array equality for (a) no overrides, (b) model only, (c) reasoning effort only, (d) both; and a test asserting none of the forbidden flags/subcommands from out_of_scope appear in case (d)."
+      ],
+      "acceptance_criteria": [
+        "buildCodexArgs({ cwd: '/w', outputFile: '/t/out.txt' }) equals ['exec', '--approve-for-me', '--cd', '/w', '--output-last-message', '/t/out.txt', '-'].",
+        "With model 'gpt-x' and reasoningEffort 'high' the result equals ['exec', '--approve-for-me', '--cd', '/w', '--model', 'gpt-x', '--config', 'model_reasoning_effort=\"high\"', '--output-last-message', '/t/out.txt', '-'].",
+        "No result contains 'resume', 'fork', '--json', '--sandbox', '--dangerously-bypass-approvals-and-sandbox', or '--worktree'.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "`--approve-for-me` is the Codex CLI flag that explicitly selects automatic approval review (verified against local codex-cli 0.162.1 help and the openai/codex source via Context7). It expands to the config overrides approvals_reviewer=\"auto_review\", approval_policy=\"on-request\", and sandbox_mode=\"workspace-write\", and Codex rejects it together with --sandbox or --dangerously-bypass-approvals-and-sandbox.",
+        "`model_reasoning_effort` is the Codex configuration key for reasoning effort, passed as `--config model_reasoning_effort=\"<effort>\"` exactly as the official Codex TypeScript SDK does (verified via Context7).",
+        "Not passing --skip-git-repo-check keeps Codex's default behaviour, consistent with inheriting unrelated Codex settings."
+      ],
+      "dependencies": [
+        "TASK-001"
+      ]
+    },
+    {
+      "id": "TASK-007",
+      "title": "Define session/run result types and status message formatting",
+      "objective": "Define the session result, execution error, and run outcome types and implement pure functions that produce the exact terminal status lines and exit code for each case.",
+      "status": "completed",
+      "story_addressed": "US-007",
+      "requirements_addressed": [
+        "AC-028",
+        "AC-029"
+      ],
+      "out_of_scope": [
+        "Do not write to any stream or file; only return strings and numbers.",
+        "Do not implement logging to files or any persistent run history."
+      ],
+      "existing_context": [
+        "src/exit-codes.ts (TASK-001) exports EXIT_CODES.",
+        "src/protocol.ts (TASK-005) exports ProtocolResponse."
+      ],
+      "constraints": [
+        "Create src/outcomes.ts, src/report.ts, and test/report.test.ts only.",
+        "Returned lines must not end with a newline; callers append '\\n'."
+      ],
+      "implementation_guidelines": [
+        "In src/outcomes.ts export `type ExecutionError = { kind: 'launch-failed'; message: string } | { kind: 'exited-unsuccessfully'; exitCode: number | null; signal: string | null } | { kind: 'missing-response' } | { kind: 'invalid-response'; reason: string }`.",
+        "In src/outcomes.ts export `type SessionResult = { kind: 'response'; response: ProtocolResponse } | { kind: 'execution-error'; error: ExecutionError } | { kind: 'timed-out' } | { kind: 'interrupted' }`.",
+        "In src/outcomes.ts export `type RunOutcome = { kind: 'complete' } | { kind: 'blocked'; blockerText: string } | { kind: 'execution-error'; error: ExecutionError } | { kind: 'iteration-limit'; maxIterations: number } | { kind: 'timed-out'; timeoutSeconds: number } | { kind: 'interrupted' }`.",
+        "In src/report.ts export `describeExecutionError(error)`: launch-failed -> `failed to launch Codex: <message>`; exited-unsuccessfully with non-null exitCode -> `Codex exited unsuccessfully with exit code <exitCode>`; exited-unsuccessfully with null exitCode -> `Codex exited unsuccessfully due to signal <signal>`; missing-response -> `Codex exited without a final response`; invalid-response -> `Codex final response is invalid: <reason>`.",
+        "Export `formatIterationStart(iteration: number, maxIterations: number, isRetry: boolean)`: `[afk] Iteration <i>/<max>: starting Codex session` or, when isRetry, `[afk] Iteration <i>/<max>: retrying after execution error`.",
+        "Export `formatExecutionError(error)` -> `[afk] Execution error: <describeExecutionError(error)>`.",
+        "Export `formatTaskFailure(summary: string)` -> `[afk] Task failed: <summary>`.",
+        "Export `formatFinalStatus(outcome: RunOutcome)`: complete -> `[afk] Run complete: the code skill reported feature completion.`; blocked -> `[afk] Run blocked: <blockerText>`; execution-error -> `[afk] Run stopped after a repeated execution error: <describeExecutionError(error)>`; iteration-limit -> `[afk] Run stopped: reached the iteration limit of <maxIterations> without reported completion.`; timed-out -> `[afk] Run stopped: Codex session timed out after <timeoutSeconds> seconds.`; interrupted -> `[afk] Run interrupted by user.`.",
+        "Export `exitCodeFor(outcome: RunOutcome): number`: complete -> EXIT_CODES.success; interrupted -> EXIT_CODES.interrupted; every other kind -> EXIT_CODES.failure.",
+        "Export `formatInputError(message)` -> `afk: input error: <message>` and `formatOptionError(message)` -> `afk: option error: <message>`.",
+        "Write one test per output string listed above and one per exitCodeFor branch."
+      ],
+      "acceptance_criteria": [
+        "Every string listed in the guidelines is produced exactly for its input, verified by tests.",
+        "exitCodeFor returns 0 only for complete, 130 for interrupted, and 1 for blocked, execution-error, iteration-limit, and timed-out.",
+        "formatFinalStatus for blocked includes the blocker text, for iteration-limit includes the limit number, and for timed-out includes the configured seconds.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "All afk status lines are written to stderr by callers so that Codex activity on stdout stays unmixed; the spec does not mandate a stream."
+      ],
+      "dependencies": [
+        "TASK-005"
+      ]
+    },
+    {
+      "id": "TASK-008",
+      "title": "Run one Codex session and classify its result",
+      "objective": "Implement runSession, which launches one fresh `codex exec` process with the session prompt on stdin, streams its output live, reads only the final-message file, and returns a classified SessionResult without leaving files behind.",
+      "status": "completed",
+      "story_addressed": "US-002",
+      "requirements_addressed": [
+        "AC-009",
+        "AC-010",
+        "AC-017",
+        "AC-028",
+        "AC-030"
+      ],
+      "out_of_scope": [
+        "Do not implement session timeouts (TASK-009) or interruption (TASK-010).",
+        "Do not implement retries or iteration counting (TASK-011, TASK-012).",
+        "Do not parse Codex's streamed stdout/stderr for protocol JSON.",
+        "Do not set or modify environment variables for the child; it inherits afk's environment."
+      ],
+      "existing_context": [
+        "src/codex-args.ts (TASK-006) exports buildCodexArgs.",
+        "src/protocol.ts (TASK-005) exports parseProtocolResponse.",
+        "src/outcomes.ts (TASK-007) exports SessionResult and ExecutionError."
+      ],
+      "constraints": [
+        "Create src/session.ts, test/fixtures/fake-codex.mjs, and test/session.test.ts only.",
+        "Spawn with `stdio: ['pipe', 'inherit', 'inherit']` so Codex activity is displayed live and not buffered by afk.",
+        "Do not use a shell (`shell` option must be false/absent).",
+        "Always delete the temporary directory in a finally block."
+      ],
+      "implementation_guidelines": [
+        "Export `interface SessionRequest { executable: string; leadingArgs: string[]; cwd: string; prompt: string; model?: string; reasoningEffort?: string }`. Production callers pass executable 'codex' and leadingArgs []; tests pass process.execPath and [fixturePath].",
+        "Export `async function runSession(request: SessionRequest): Promise<SessionResult>`.",
+        "Create a temp dir with `fs.promises.mkdtemp(path.join(os.tmpdir(), 'afk-'))` and set outputFile to `path.join(tempDir, 'last-message.txt')`.",
+        "Spawn `request.executable` with `[...request.leadingArgs, ...buildCodexArgs({ cwd, outputFile, model, reasoningEffort })]` and `{ cwd: request.cwd, stdio: ['pipe', 'inherit', 'inherit'] }`.",
+        "Attach `child.stdin.on('error', () => {})` to ignore EPIPE, then `child.stdin.end(request.prompt)`.",
+        "Wait on a promise that settles once: on the child 'error' event resolve to { kind: 'execution-error', error: { kind: 'launch-failed', message: err.message } }; on 'close' (code, signal) continue with classification.",
+        "If code !== 0, return { kind: 'execution-error', error: { kind: 'exited-unsuccessfully', exitCode: code, signal } } without reading the output file.",
+        "If code === 0, read outputFile as UTF-8; if the read fails with ENOENT or the text trims to '', return execution-error missing-response; otherwise call parseProtocolResponse and return { kind: 'response', response } or execution-error invalid-response with the parser's reason.",
+        "Create test/fixtures/fake-codex.mjs (starts with `#!/usr/bin/env node`, chmod 755) that: reads env FAKE_CODEX_STATE_DIR (required); reads `<state>/steps.json` (JSON array of steps); increments the integer in `<state>/count` (missing means 0) to get call number n (1-based); selects steps[n-1], or the last step if n exceeds the array; reads all of stdin; writes `<state>/call-<n>.json` containing { argv: process.argv.slice(2), stdin, cwd: process.cwd(), pid: process.pid }; if step.stdout is a string writes it to stdout; if step.ignoreSigint is true installs `process.on('SIGINT', () => {})`; if step.sleepMs is a number waits that many ms; if step.finalMessage is a string writes it to the path following '--output-last-message' in argv; exits with step.exitCode ?? 0.",
+        "In tests create a fresh state dir per test, write steps.json, set process.env.FAKE_CODEX_STATE_DIR, and call runSession with executable process.execPath and leadingArgs [absolute fixture path].",
+        "Test cases: valid repeat/complete/blocked/fail responses; exit code 0 with no finalMessage -> missing-response; finalMessage '   ' -> missing-response; finalMessage 'Done! {\"outcome\":\"complete\"}' -> invalid-response; exitCode 3 with a valid finalMessage -> exited-unsuccessfully exitCode 3; stdout containing '{\"outcome\":\"complete\"}' but no finalMessage -> missing-response; executable '/nonexistent/codex-missing' -> launch-failed; the recorded call has stdin equal to the request prompt, cwd equal to the request cwd, and argv containing 'exec' and '--approve-for-me' and not 'resume'; after runSession returns, the directory containing the recorded '--output-last-message' path no longer exists."
+      ],
+      "acceptance_criteria": [
+        "A fake session writing '{\"outcome\":\"complete\"}' to the output file and exiting 0 yields { kind: 'response', response: { outcome: 'complete' } }.",
+        "A fake session exiting with code 3 yields exited-unsuccessfully with exitCode 3 even when it wrote a valid final message.",
+        "A fake session that only prints protocol JSON to stdout and writes no final message yields missing-response.",
+        "A non-JSON or prose-wrapped final message yields invalid-response with the parser's reason.",
+        "A non-existent executable yields launch-failed with a non-empty message.",
+        "The child received the request prompt on stdin, ran in request.cwd, and its argv contains 'exec' and '--approve-for-me'.",
+        "The temporary afk- directory used for the output file is removed after every runSession call, including launch failure.",
+        "src/session.ts spawns with stdio ['pipe', 'inherit', 'inherit'].",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "Using `--output-last-message` is how the final assistant message is evaluated separately from streamed activity.",
+        "The temporary output file in the OS temp directory is transient session plumbing, not a persistent harness log, because it is deleted when the session ends.",
+        "afk targets macOS and Linux; Windows signal semantics are not handled."
+      ],
+      "dependencies": [
+        "TASK-005",
+        "TASK-006",
+        "TASK-007"
+      ]
+    },
+    {
+      "id": "TASK-009",
+      "title": "Enforce an optional per-session timeout in runSession",
+      "objective": "Extend runSession so that, when a timeout is configured, an over-running Codex process is interrupted, forcibly killed after a grace period if needed, and reported as timed-out.",
+      "status": "completed",
+      "story_addressed": "US-005",
+      "requirements_addressed": [
+        "AC-022",
+        "AC-023",
+        "AC-027"
+      ],
+      "out_of_scope": [
+        "Do not decide whether the run continues after a timeout; TASK-011 stops the run.",
+        "Do not implement Ctrl+C handling (TASK-010, TASK-014).",
+        "Do not revert or clean up project changes made by the session."
+      ],
+      "existing_context": [
+        "src/session.ts (TASK-008) implements runSession without timeouts.",
+        "test/fixtures/fake-codex.mjs supports sleepMs and ignoreSigint steps."
+      ],
+      "constraints": [
+        "Modify only src/session.ts and test/session.test.ts.",
+        "With no timeoutSeconds, behaviour must be identical to TASK-008 (no timer is created).",
+        "Clear all timers when the child closes so the Node process does not stay alive."
+      ],
+      "implementation_guidelines": [
+        "Add optional fields to SessionRequest: `timeoutSeconds?: number` and `terminationGraceMs?: number` (default 5000).",
+        "Add an internal helper `terminate(child, graceMs)` that calls `child.kill('SIGINT')` and starts a timer that calls `child.kill('SIGKILL')` after graceMs if the child has not closed.",
+        "When timeoutSeconds is defined, start `setTimeout(..., timeoutSeconds * 1000)` after spawning; on expiry set a local `timedOut = true` and call terminate.",
+        "On 'close', clear the timeout timer and the kill timer; if timedOut is true return { kind: 'timed-out' } regardless of exit code or output file.",
+        "Tests: (a) step sleepMs 10000, timeoutSeconds 1 -> returns timed-out within 4 seconds; (b) step sleepMs 10000 with ignoreSigint true, timeoutSeconds 1, terminationGraceMs 200 -> returns timed-out within 4 seconds and the recorded pid no longer exists (`process.kill(pid, 0)` throws); (c) step sleepMs 100 with a valid final message and timeoutSeconds 5 -> returns the response normally."
+      ],
+      "acceptance_criteria": [
+        "A session exceeding timeoutSeconds returns { kind: 'timed-out' }.",
+        "A session that ignores SIGINT is killed after terminationGraceMs and runSession still returns timed-out; the fake process is no longer running afterwards.",
+        "A session finishing before its timeout returns its normal classified result.",
+        "Without timeoutSeconds, all TASK-008 tests still pass unchanged.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "'Interrupted and terminated' is implemented as SIGINT followed by SIGKILL after a 5-second grace period."
+      ],
+      "dependencies": [
+        "TASK-008"
+      ]
+    },
+    {
+      "id": "TASK-010",
+      "title": "Support interrupting an active session via AbortSignal",
+      "objective": "Extend runSession to accept an AbortSignal that, when aborted, forwards SIGINT to the active Codex process, kills it after the grace period if needed, and returns an interrupted result.",
+      "status": "completed",
+      "story_addressed": "US-006",
+      "requirements_addressed": [
+        "AC-025",
+        "AC-027"
+      ],
+      "out_of_scope": [
+        "Do not register process signal handlers here; TASK-014 wires Ctrl+C to the AbortSignal.",
+        "Do not delete project files, the code skill's working memory, or roll back changes."
+      ],
+      "existing_context": [
+        "src/session.ts (TASK-009) has a terminate(child, graceMs) helper and timeout handling."
+      ],
+      "constraints": [
+        "Modify only src/session.ts and test/session.test.ts.",
+        "Remove the abort event listener when the session ends."
+      ],
+      "implementation_guidelines": [
+        "Add optional `abortSignal?: AbortSignal` to SessionRequest.",
+        "If abortSignal.aborted is already true when runSession is called, return { kind: 'interrupted' } without creating a temp directory or spawning.",
+        "Otherwise add an 'abort' listener (with `{ once: true }`) that sets a local `interrupted = true` and calls terminate(child, graceMs) unless the session already timed out.",
+        "On 'close', remove the listener; if interrupted is true return { kind: 'interrupted' }; if timedOut is true return { kind: 'timed-out' } (whichever was set first wins; set only one of the two flags).",
+        "Tests: (a) step sleepMs 10000, abort after 300 ms -> returns interrupted within 3 seconds; (b) step ignoreSigint true with sleepMs 10000, terminationGraceMs 200, abort after 300 ms -> returns interrupted and the recorded pid no longer exists; (c) an already-aborted signal -> returns interrupted and the fake's state dir has no call-1.json."
+      ],
+      "acceptance_criteria": [
+        "Aborting during a session returns { kind: 'interrupted' } and the Codex process is no longer running afterwards.",
+        "An already-aborted signal returns interrupted without launching Codex.",
+        "Timeout tests from TASK-009 and session tests from TASK-008 still pass.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "When Ctrl+C is pressed in a terminal, Codex in the same foreground process group may receive SIGINT directly as well as the forwarded one; receiving it twice is acceptable."
+      ],
+      "dependencies": [
+        "TASK-009"
+      ]
+    },
+    {
+      "id": "TASK-011",
+      "title": "Implement the iteration loop for protocol outcomes and limits",
+      "objective": "Implement runLoop, which runs sessions sequentially and acts on each valid outcome, timeout, interruption, and the iteration limit as the specification's action table requires.",
+      "status": "completed",
+      "story_addressed": "US-002",
+      "requirements_addressed": [
+        "AC-009",
+        "AC-011",
+        "AC-012",
+        "AC-014",
+        "AC-016",
+        "AC-020",
+        "AC-021",
+        "AC-023",
+        "AC-025",
+        "AC-028"
+      ],
+      "out_of_scope": [
+        "Do not implement the execution-error retry; TASK-012 adds it. In this task an execution error immediately ends the run.",
+        "Do not inspect task files, Git state, test results, or the workspace to judge progress.",
+        "Do not spawn processes directly; call the injected session runner."
+      ],
+      "existing_context": [
+        "src/outcomes.ts exports SessionResult and RunOutcome; src/report.ts exports formatIterationStart, formatExecutionError, formatTaskFailure."
+      ],
+      "constraints": [
+        "Create src/run-loop.ts and test/run-loop.test.ts only.",
+        "Sessions must run strictly one at a time: await each session before starting the next.",
+        "The loop must trust valid outcomes and never start more than maxIterations sessions."
+      ],
+      "implementation_guidelines": [
+        "Export `interface RunLoopConfig { maxIterations: number; sessionTimeoutSeconds?: number; abortSignal?: AbortSignal }`.",
+        "Export `type SessionRunner = () => Promise<SessionResult>` and `async function runLoop(config: RunLoopConfig, runSession: SessionRunner, log: (line: string) => void): Promise<RunOutcome>`.",
+        "Loop with iteration from 1 to config.maxIterations. At the top of each iteration, if config.abortSignal?.aborted return { kind: 'interrupted' }.",
+        "Log formatIterationStart(iteration, maxIterations, false), then await runSession().",
+        "response/repeat: continue to the next iteration.",
+        "response/complete: return { kind: 'complete' }.",
+        "response/blocked: return { kind: 'blocked', blockerText }.",
+        "response/fail: log formatTaskFailure(failureSummary) and continue to the next iteration.",
+        "execution-error: log formatExecutionError(error) and return { kind: 'execution-error', error } (interim behaviour replaced in TASK-012).",
+        "timed-out: return { kind: 'timed-out', timeoutSeconds: config.sessionTimeoutSeconds as number }.",
+        "interrupted: return { kind: 'interrupted' }.",
+        "After the loop ends without returning, return { kind: 'iteration-limit', maxIterations: config.maxIterations }.",
+        "Tests use a scripted fake runner (an array of SessionResult values consumed in order, counting calls) and a log array: complete on first call; repeat then complete; fail then complete (log contains '[afk] Task failed: <summary>'); blocked stops after 1 call; maxIterations 2 with repeat,repeat -> iteration-limit after exactly 2 calls; maxIterations 1 with fail -> iteration-limit; maxIterations 1 with complete -> complete; maxIterations 1 with blocked -> blocked; timed-out -> timed-out with configured seconds and no further calls; interrupted -> interrupted; pre-aborted signal -> interrupted with 0 calls; log contains 'Iteration 1/<max>' and 'Iteration 2/<max>' lines; a runner that records concurrent invocations proves no two sessions overlap."
+      ],
+      "acceptance_criteria": [
+        "repeat and fail start another session; complete returns complete; blocked returns blocked with its text and starts no further session.",
+        "A fail outcome logs '[afk] Task failed: <failure_summary>'.",
+        "With maxIterations N, the runner is called at most N times, and a last-iteration repeat or fail returns { kind: 'iteration-limit', maxIterations: N }.",
+        "A last-iteration complete returns complete and a last-iteration blocked returns blocked.",
+        "timed-out and interrupted session results end the run immediately with the matching RunOutcome.",
+        "Each session start is logged as '[afk] Iteration <i>/<N>: starting Codex session'.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "sessionTimeoutSeconds is always defined when a timed-out result occurs, because runSession only times out when a timeout is configured."
+      ],
+      "dependencies": [
+        "TASK-007"
+      ]
+    },
+    {
+      "id": "TASK-012",
+      "title": "Retry once after a consecutive execution error",
+      "objective": "Extend runLoop so the first execution error after a valid response (or at run start) triggers one fresh-session retry within the iteration budget, and a second consecutive execution error stops the run.",
+      "status": "completed",
+      "story_addressed": "US-004",
+      "requirements_addressed": [
+        "AC-016",
+        "AC-017",
+        "AC-018",
+        "AC-019",
+        "AC-021"
+      ],
+      "out_of_scope": [
+        "Do not retry after timed-out or interrupted results.",
+        "Do not treat a valid fail outcome as an execution error.",
+        "Do not change the session prompt for retries; the same runner is called again."
+      ],
+      "existing_context": [
+        "src/run-loop.ts (TASK-011) currently returns immediately on execution-error."
+      ],
+      "constraints": [
+        "Modify only src/run-loop.ts and test/run-loop.test.ts.",
+        "Every retry consumes one iteration."
+      ],
+      "implementation_guidelines": [
+        "Keep a counter `consecutiveExecutionErrors` starting at 0 and a boolean `isRetry` starting false.",
+        "Pass isRetry to formatIterationStart so retries log '[afk] Iteration <i>/<N>: retrying after execution error'.",
+        "On any valid response result: set consecutiveExecutionErrors = 0 and isRetry = false before handling the outcome.",
+        "On execution-error: log formatExecutionError(error); increment consecutiveExecutionErrors; if it is now 2 or more return { kind: 'execution-error', error }; otherwise set isRetry = true and continue to the next iteration (which, if none remain, falls through to iteration-limit).",
+        "Tests: error then complete -> complete with 2 calls and a retry log line; error, error -> execution-error with the second error and 2 calls; error, repeat, error, complete -> complete with 4 calls (allowance reset); fail, error, complete -> complete (fail is not an execution error); maxIterations 1 with error -> iteration-limit with 1 call; maxIterations 2 with repeat, error -> iteration-limit; error, timed-out -> timed-out with 2 calls; every execution error produces an '[afk] Execution error:' log line."
+      ],
+      "acceptance_criteria": [
+        "A single execution error is logged and followed by exactly one retry session logged as 'retrying after execution error'.",
+        "Two consecutive execution errors return { kind: 'execution-error' } carrying the second error, with no third session.",
+        "A valid response between two execution errors resets the allowance so the second error is retried.",
+        "An execution error on the last allowed iteration returns iteration-limit without another session.",
+        "All TASK-011 tests still pass.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "If the second consecutive execution error happens on the last allowed iteration, the run reports the execution error (no retry is permitted anyway) rather than the iteration limit."
+      ],
+      "dependencies": [
+        "TASK-011"
+      ]
+    },
+    {
+      "id": "TASK-013",
+      "title": "Wire options, prompt, sessions, and loop into a main function",
+      "objective": "Implement main(argv, io), which validates input, runs the loop with real sessions, prints the final status line, and returns the exit code, launching no session when options or input are invalid.",
+      "status": "completed",
+      "story_addressed": "US-001",
+      "requirements_addressed": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005",
+        "AC-024",
+        "AC-026",
+        "AC-029"
+      ],
+      "out_of_scope": [
+        "Do not register process signal handlers or call process.exit; TASK-014 does that in src/cli.ts.",
+        "Do not create, read, or write any harness state, log, or history file.",
+        "Do not create branches, worktrees, install skills or dependencies."
+      ],
+      "existing_context": [
+        "parseOptions (src/options.ts), resolvePrompt and readStream (src/prompt.ts), buildSessionPrompt (src/session-prompt.ts), runSession (src/session.ts), runLoop (src/run-loop.ts), and the formatting functions in src/report.ts exist.",
+        "test/fixtures/fake-codex.mjs simulates Codex."
+      ],
+      "constraints": [
+        "Create src/main.ts and test/main.test.ts only.",
+        "All afk lines are written via io.stderr.write(line + '\\n')."
+      ],
+      "implementation_guidelines": [
+        "Export `interface MainIo { stdin: NodeJS.ReadableStream & { isTTY?: boolean }; stderr: { write(chunk: string): unknown }; processCwd: string; abortSignal?: AbortSignal; codex?: { executable: string; leadingArgs: string[] } }`.",
+        "Export `async function main(argv: string[], io: MainIo): Promise<number>`.",
+        "Call parseOptions(argv, io.processCwd); on failure write formatOptionError(message) and return EXIT_CODES.usageError.",
+        "Call resolvePrompt({ positionals, promptFile, processCwd: io.processCwd, stdin: { isTTY: io.stdin.isTTY === true, read: () => readStream(io.stdin) } }); on failure write formatInputError(message) and return EXIT_CODES.usageError.",
+        "Build sessionPrompt = buildSessionPrompt(prompt) once.",
+        "Create the runner `() => runSession({ executable: io.codex?.executable ?? 'codex', leadingArgs: io.codex?.leadingArgs ?? [], cwd: options.cwd, prompt: sessionPrompt, model: options.model, reasoningEffort: options.reasoningEffort, timeoutSeconds: options.sessionTimeoutSeconds, abortSignal: io.abortSignal })`.",
+        "Call runLoop({ maxIterations, sessionTimeoutSeconds, abortSignal }, runner, line => io.stderr.write(line + '\\n')).",
+        "Write formatFinalStatus(outcome) and return exitCodeFor(outcome).",
+        "Tests use the fake Codex via `codex: { executable: process.execPath, leadingArgs: [fixturePath] }`, a stderr collector, and stdin built with `Object.assign(Readable.from([text]), { isTTY: false })` or `Object.assign(Readable.from([]), { isTTY: true })`.",
+        "Test cases: positional prompt + complete -> 0 and '[afk] Run complete' written; --max-iterations 0 -> 2, 'afk: option error:' and no call-1.json; positional plus piped stdin -> 2, 'afk: input error:' and no call-1.json; no prompt with TTY stdin -> 2; blocked -> 1 and stderr contains the blocker text; --cwd <tempdir> -> recorded call cwd equals that dir; two consecutive main invocations with --max-iterations 1 and a repeat step each launch exactly one session (fresh budget, nothing persisted between runs)."
+      ],
+      "acceptance_criteria": [
+        "Invalid options return 2, write a line starting 'afk: option error:', and launch no Codex session.",
+        "Invalid prompt input returns 2, writes a line starting 'afk: input error:', and launches no Codex session.",
+        "A complete outcome returns 0 and writes '[afk] Run complete: the code skill reported feature completion.'.",
+        "A blocked outcome returns 1 and writes '[afk] Run blocked: <blocker_text>'.",
+        "Sessions run in the --cwd directory when given, else in processCwd.",
+        "A second main invocation with the same prompt gets a full, fresh iteration budget.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "Option errors are reported before the prompt is resolved, so stdin is not read when options are invalid."
+      ],
+      "dependencies": [
+        "TASK-002",
+        "TASK-003",
+        "TASK-004",
+        "TASK-010",
+        "TASK-012"
+      ]
+    },
+    {
+      "id": "TASK-014",
+      "title": "Add the afk executable entry point with Ctrl+C handling",
+      "objective": "Create src/cli.ts, the `afk` executable, which calls main with process I/O, turns Ctrl+C into an abort of the active run, and sets the process exit code.",
+      "status": "completed",
+      "story_addressed": "US-006",
+      "requirements_addressed": [
+        "AC-025",
+        "AC-027"
+      ],
+      "out_of_scope": [
+        "Do not detach, background, or daemonize the Codex process.",
+        "Do not handle signals other than SIGINT.",
+        "Do not add packaging changes beyond what is required to build dist/cli.js (TASK-015 covers npx)."
+      ],
+      "existing_context": [
+        "src/main.ts (TASK-013) exports main(argv, io).",
+        "package.json bin already points `afk` at dist/cli.js."
+      ],
+      "constraints": [
+        "Create src/cli.ts and test/cli.test.ts only.",
+        "The first line of src/cli.ts must be `#!/usr/bin/env node`.",
+        "Do not call process.exit(); set process.exitCode so stdio is flushed."
+      ],
+      "implementation_guidelines": [
+        "In src/cli.ts: create `const controller = new AbortController()`; define `const onSigint = () => controller.abort()`; call `process.on('SIGINT', onSigint)` before calling main (installing a listener prevents Node's default immediate exit).",
+        "Call `const code = await main(process.argv.slice(2), { stdin: process.stdin, stderr: process.stderr, processCwd: process.cwd(), abortSignal: controller.signal })` using top-level await.",
+        "Then `process.off('SIGINT', onSigint)` and `process.exitCode = code`.",
+        "In test/cli.test.ts, run `npm run build` once in beforeAll (execSync, cwd = project dir), then spawn `process.execPath dist/cli.js` with a temp bin directory prepended to PATH that contains an executable `codex` shell script: `#!/bin/sh` and `exec \"<process.execPath>\" \"<absolute fake-codex.mjs path>\" \"$@\"`; set FAKE_CODEX_STATE_DIR in the child env.",
+        "Test (a): a step that prints 'working' then sleeps 10000 ms; after the CLI's stderr contains 'Iteration 1/', send SIGINT to the CLI process only; assert the CLI exits with code 130 within 8 seconds, stderr contains '[afk] Run interrupted by user.', only call-1.json exists, and `process.kill(recordedPid, 0)` throws (the Codex process is gone).",
+        "Test (b): the same with a step that has ignoreSigint true; assert the CLI still exits 130 within 10 seconds and the fake process is gone (forced kill after the 5 s grace).",
+        "Test (c): spawning the CLI with no arguments and stdin ended immediately exits with code 2 and stderr containing 'afk: input error:'."
+      ],
+      "acceptance_criteria": [
+        "dist/cli.js starts with '#!/usr/bin/env node' after `npm run build`.",
+        "SIGINT during a session ends the CLI with exit code 130 and the message '[afk] Run interrupted by user.' without starting another session.",
+        "After SIGINT, the managed Codex process is no longer running, including when it ignores SIGINT.",
+        "Running the CLI without a prompt exits with code 2.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "Repeated Ctrl+C presses are idempotent: AbortController.abort() only takes effect once and afk waits for the managed process to terminate (at most the 5 s grace period) before exiting."
+      ],
+      "dependencies": [
+        "TASK-013"
+      ]
+    },
+    {
+      "id": "TASK-015",
+      "title": "Make the package runnable through npx",
+      "objective": "Ensure the package builds on install and that a packed tarball exposes a working `afk` executable via `npm exec`/`npx` without publishing.",
+      "status": "completed",
+      "story_addressed": "US-001",
+      "requirements_addressed": [
+        "AC-001",
+        "AC-004"
+      ],
+      "out_of_scope": [
+        "Do not publish to npm or change the package name.",
+        "Do not add runtime dependencies."
+      ],
+      "existing_context": [
+        "package.json from TASK-001 declares bin, files, and build scripts; src/cli.ts exists from TASK-014."
+      ],
+      "constraints": [
+        "Modify only package.json and create test/package.test.ts.",
+        "The packed tarball must contain dist/ and package.json but not src/, test/, or specs/."
+      ],
+      "implementation_guidelines": [
+        "Add the script `\"prepare\": \"npm run build\"` to package.json so installs from a Git URL or local directory build dist/.",
+        "In test/package.test.ts (allow a 120 s test timeout): run `npm pack --json --pack-destination <tempdir>` from the project dir with execSync, parse the JSON, and assert the files list includes 'dist/cli.js' and 'package.json' and no path starting with 'src/', 'test/', or 'specs/'.",
+        "In the same test, run `npm exec --yes --package=<absolute tarball path> -- afk` with cwd set to a fresh temp dir and stdin set to an empty input; assert exit status 2 and stderr containing 'afk: input error:'."
+      ],
+      "acceptance_criteria": [
+        "package.json scripts include \"prepare\": \"npm run build\".",
+        "`npm pack` output contains dist/cli.js and package.json and excludes src/, test/, and specs/.",
+        "Executing the packed tarball through `npm exec --package=<tarball> -- afk` with no prompt exits with status 2 and prints 'afk: input error:'.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "`npm exec` is the command behind `npx`, so testing `npm exec --package=<tarball>` demonstrates npx compatibility without publishing.",
+        "The test environment can run npm offline for a local tarball with no runtime dependencies."
+      ],
+      "dependencies": [
+        "TASK-014"
+      ]
+    },
+    {
+      "id": "TASK-016",
+      "title": "Add end-to-end tests for launching runs and session inputs",
+      "objective": "Add end-to-end tests that run the built afk CLI against the fake Codex to verify prompt sources, session arguments, fresh sessions, overrides, and absence of persistent harness files.",
+      "status": "completed",
+      "story_addressed": "US-002",
+      "requirements_addressed": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005",
+        "AC-008",
+        "AC-009",
+        "AC-013",
+        "AC-015",
+        "AC-026",
+        "AC-030"
+      ],
+      "out_of_scope": [
+        "Do not change production code; if a test exposes a defect, record it and create a follow-up fix task in the task list as the code skill requires.",
+        "Do not cover stop scenarios (blocked, errors, limits, timeouts, interruption); TASK-017 covers them."
+      ],
+      "existing_context": [
+        "test/cli.test.ts (TASK-014) already builds dist/ and creates a PATH-shimmed `codex` script for the fake Codex."
+      ],
+      "constraints": [
+        "Create test/helpers/run-cli.ts and test/e2e-launch.test.ts; you may refactor test/cli.test.ts to use the helper, but no files under src/.",
+        "Every test uses fresh temporary directories for the workspace, state, and bin shim."
+      ],
+      "implementation_guidelines": [
+        "In test/helpers/run-cli.ts export `buildOnce()` (runs `npm run build` once per test process) and `async function runCli(opts: { args: string[]; steps: object[]; stdin?: string; workspace?: string; timeoutMs?: number }): Promise<{ exitCode: number | null; signal: string | null; stdout: string; stderr: string; calls: Array<{ argv: string[]; stdin: string; cwd: string; pid: number }>; stateDir: string }>` that creates the bin shim and state dir, writes steps.json, spawns `process.execPath dist/cli.js ...args` with cwd = workspace (default: a fresh temp dir), env PATH prefixed with the shim dir and FAKE_CODEX_STATE_DIR set, writes opts.stdin (or nothing) and ends stdin, collects output, and reads call-*.json files sorted by number. Also export `startCli` returning the ChildProcess plus the same paths, for TASK-017.",
+        "Test: positional prompt 'Implement feature X' with steps [repeat, complete] -> exit 0; 2 calls; each call's stdin starts with 'Implement feature X' and contains 'Instructions from the afk harness:'; each argv starts with 'exec' and contains '--approve-for-me'; no argv contains 'resume' or 'fork'.",
+        "Test: --prompt-file <file containing 'From file'> -> call stdin starts with 'From file'.",
+        "Test: stdin 'From stdin' with no args -> call stdin starts with 'From stdin'.",
+        "Test: positional plus stdin, positional plus --prompt-file, and an empty positional each exit 2 with 'afk: input error:' and 0 calls.",
+        "Test: --cwd <other temp dir> -> recorded cwd equals that dir and argv contains '--cd' followed by it.",
+        "Test: --model m1 --reasoning-effort low with steps [exit code 1, complete] -> both calls' argv contain '--model', 'm1', '--config', 'model_reasoning_effort=\"low\"'; a run without these flags has no '--model' and no 'model_reasoning_effort' in argv.",
+        "Test: after a complete run in an empty workspace, the workspace directory is still empty and the '--output-last-message' file's parent directory no longer exists.",
+        "Test: running the CLI twice with --max-iterations 1 and steps [repeat] in the same workspace -> each run exits 1 after exactly one new call (fresh session budget)."
+      ],
+      "acceptance_criteria": [
+        "All tests in test/e2e-launch.test.ts pass against the built dist/cli.js.",
+        "Each prompt source is shown to reach Codex unchanged at the start of the session prompt.",
+        "Every session, including a retry, is a new `codex exec` invocation with --approve-for-me and without resume/fork.",
+        "Model and reasoning-effort overrides appear on every session only when supplied.",
+        "No files are left in the workspace or in the afk- temp directory after a run.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "The fake Codex writes nothing to the workspace, so an empty workspace after a run shows afk itself created no logs or history there."
+      ],
+      "dependencies": [
+        "TASK-015"
+      ]
+    },
+    {
+      "id": "TASK-017",
+      "title": "Add end-to-end tests for every way a run stops",
+      "objective": "Add end-to-end tests that verify the built CLI's exit codes, final status lines, retries, streaming, and session counts for each stop reason.",
+      "status": "completed",
+      "story_addressed": "US-007",
+      "requirements_addressed": [
+        "AC-011",
+        "AC-014",
+        "AC-017",
+        "AC-018",
+        "AC-020",
+        "AC-021",
+        "AC-022",
+        "AC-023",
+        "AC-025",
+        "AC-027",
+        "AC-028",
+        "AC-029"
+      ],
+      "out_of_scope": [
+        "Do not change production code; if a test exposes a defect, record it and create a follow-up fix task in the task list.",
+        "Do not duplicate the launch/input scenarios from TASK-016."
+      ],
+      "existing_context": [
+        "test/helpers/run-cli.ts (TASK-016) provides runCli and startCli."
+      ],
+      "constraints": [
+        "Create test/e2e-stop.test.ts only.",
+        "Give timing-based tests explicit vitest timeouts of at least 20 seconds."
+      ],
+      "implementation_guidelines": [
+        "blocked: steps [blocked 'Missing tasks file; provide specs/tasks.json'] -> exit 1, 1 call, stderr contains '[afk] Run blocked: Missing tasks file; provide specs/tasks.json'.",
+        "fail then complete -> exit 0, 2 calls, stderr contains '[afk] Task failed: <summary>' and '[afk] Run complete'.",
+        "exit code 3 then complete -> exit 0, 2 calls, stderr contains 'exit code 3' and 'retrying after execution error'.",
+        "invalid final message ('Done.') twice -> exit 1, 2 calls, stderr contains '[afk] Run stopped after a repeated execution error: Codex final response is invalid'.",
+        "missing final message twice -> exit 1, 2 calls, stderr contains 'without a final response'.",
+        "launch failure: run with a PATH that contains only a directory without `codex` plus the directory of process.execPath -> exit 1, stderr contains 'failed to launch Codex' twice (initial and retry).",
+        "--max-iterations 2 with always-repeat -> exit 1, exactly 2 calls, stderr contains 'reached the iteration limit of 2'.",
+        "default limit: always-repeat with no --max-iterations -> exactly 10 calls and 'iteration limit of 10'.",
+        "--session-timeout 1 with a sleepMs 10000 step -> exit 1 within 10 seconds, 1 call, stderr contains 'timed out after 1 seconds'.",
+        "streaming: a step printing 'fake activity' to stdout then sleeping 2000 ms -> using startCli, 'fake activity' is received on the CLI's stdout while the CLI process is still running.",
+        "interruption: covered by test/cli.test.ts; additionally assert here with startCli that after SIGINT no call-2.json is ever created (wait 1 s after exit)."
+      ],
+      "acceptance_criteria": [
+        "Each scenario listed in the guidelines passes against the built CLI.",
+        "Only a valid complete outcome produces exit code 0; blocked, execution error, iteration limit, and timeout produce exit code 1; interruption produces 130.",
+        "Each final status line names its stop reason and includes the blocker text, exit status, limit, or timeout as applicable.",
+        "Codex stdout is observed before the CLI exits.",
+        "`npm test` and `npm run typecheck` pass."
+      ],
+      "assumptions": [
+        "PATH manipulation is sufficient to simulate a Codex launch failure (ENOENT)."
+      ],
+      "dependencies": [
+        "TASK-016"
+      ]
+    },
+    {
+      "id": "TASK-018",
+      "title": "Validate the implementation against the specification",
+      "objective": "Perform a read-only validation that every acceptance criterion in the specification is evidenced by tests or checks, that harness non-goals are respected, and that the Codex flags work with the installed Codex CLI.",
+      "status": "completed",
+      "story_addressed": "US-001, US-002, US-003, US-004, US-005, US-006, US-007",
+      "requirements_addressed": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005",
+        "AC-006",
+        "AC-008",
+        "AC-009",
+        "AC-010",
+        "AC-011",
+        "AC-012",
+        "AC-013",
+        "AC-014",
+        "AC-015",
+        "AC-016",
+        "AC-017",
+        "AC-018",
+        "AC-019",
+        "AC-020",
+        "AC-021",
+        "AC-022",
+        "AC-023",
+        "AC-024",
+        "AC-025",
+        "AC-026",
+        "AC-027",
+        "AC-028",
+        "AC-029",
+        "AC-030"
+      ],
+      "out_of_scope": [
+        "Do not modify source, test, or package files; this task may only update the task list and progress.txt.",
+        "Do not fix defects here; add a new follow-up task to specs/tasks.json for each defect found."
+      ],
+      "existing_context": [
+        "All implementation tasks TASK-001 to TASK-017 are completed.",
+        ".agents/skills/code/SKILL.md already contains the unattended blocked-response rule required by AC-014."
+      ],
+      "constraints": [
+        "Read-only except specs/tasks.json and progress.txt.",
+        "Record every command run and its outcome in progress.txt."
+      ],
+      "implementation_guidelines": [
+        "Run `npm ci`, `npm run typecheck`, `npm run build`, and `npm test`; all must exit 0.",
+        "Build a table in progress.txt mapping every AC (AC-001 to AC-006 and AC-008 to AC-030) to the test file and test name, or the check, that evidences it; any AC without evidence is a defect.",
+        "Search src/ (e.g. with grep) and confirm there are no occurrences of: 'git ', 'worktree', 'npm install', 'tasks.json', 'progress.txt', 'resume', 'fork', 'dangerously', 'detached: true', 'appendFile'; and that writeFile is not used outside test files. Any match in production code is a defect (AC-006, AC-012, AC-027, AC-030).",
+        "Confirm .agents/skills/code/SKILL.md contains the rule returning {\"outcome\":\"blocked\",...} when the specification or task list is missing (AC-014).",
+        "Run `codex exec --help` and confirm it lists --approve-for-me, --cd, --model, --config, and --output-last-message.",
+        "If `codex login status` reports a logged-in account: create a temp dir, run `git init` in it, copy .agents/skills/code into its .agents/skills/code, and run `node <project>/dist/cli.js --cwd <tempdir> --max-iterations 1 --reasoning-effort low \"There is no specification or task list for this run.\"`; expect exit status 1 with a '[afk] Run blocked:' line (or record the actual result). If Codex is not logged in, record the smoke check as skipped with the reason.",
+        "If any defect is found, add a follow-up fix task to specs/tasks.json and respond with the fail outcome as the code skill requires."
+      ],
+      "acceptance_criteria": [
+        "typecheck, build, and test commands all exit 0.",
+        "progress.txt contains an evidence entry for every AC from AC-001 to AC-030 except the non-existent AC-007.",
+        "The forbidden-pattern search finds no matches in src/.",
+        "The installed `codex exec --help` lists every flag used by src/codex-args.ts.",
+        "The real-Codex smoke check result (or the reason it was skipped) is recorded in progress.txt.",
+        "Every defect found has a corresponding new pending follow-up task in specs/tasks.json."
+      ],
+      "assumptions": [
+        "The specification has no AC-007; this is a numbering gap, not a missing requirement.",
+        "A real-Codex smoke check consumes model usage and requires authentication, so it is conditional."
+      ],
+      "dependencies": [
+        "TASK-017",
+        "TASK-019"
+      ]
+    },
+    {
+      "id": "TASK-019",
+      "title": "Stabilize the end-to-end timeout test under parallel load",
+      "objective": "Make the built-CLI timeout test reliably establish that a launched fake Codex session is terminated after timing out, even while other test files perform npm packaging work.",
+      "status": "completed",
+      "story_addressed": "US-005",
+      "requirements_addressed": [
+        "AC-023",
+        "AC-029"
+      ],
+      "out_of_scope": [
+        "Do not change production code or timeout semantics."
+      ],
+      "existing_context": [
+        "TASK-018 full npm test run failed because the one-second timeout fired before the fake Codex fixture wrote call-1.json while tests ran in parallel; the focused TASK-017 suite passed."
+      ],
+      "constraints": [
+        "Modify only test/e2e-stop.test.ts, this task list, and progress.txt."
+      ],
+      "implementation_guidelines": [
+        "Use a timeout long enough for the fake process to start under parallel test load while remaining well below its 10-second sleep.",
+        "Verify one recorded call, unsuccessful exit, timeout status with the configured duration, and terminated fake-process PID.",
+        "Run the full npm test suite to verify the race is resolved."
+      ],
+      "acceptance_criteria": [
+        "The full npm test suite passes.",
+        "The timeout test records exactly one call and confirms that process is gone after the CLI stops.",
+        "The timeout status reports the configured duration."
+      ],
+      "assumptions": [
+        "The issue is a test scheduling race because isolated runs pass and the full run failed with zero recorded calls, while the CLI correctly reported a timeout."
+      ],
+      "dependencies": [
+        "TASK-017"
+      ]
+    }
+  ]
+}
