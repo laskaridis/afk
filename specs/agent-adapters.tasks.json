@@ -5,7 +5,7 @@
       "id": "TASK-001",
       "title": "Add AgentAdapter types and the Codex adapter",
       "objective": "Create src/agents/types.ts with the AgentAdapter and FinalMessageResult types and src/agents/codex.ts exporting a pure Codex adapter.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-005",
       "requirements_addressed": ["AC-013", "AC-019", "AC-021"],
       "out_of_scope": [

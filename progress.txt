@@ -1,0 +1,28 @@
+## Project discovery
+- Source modules use `.js` import suffixes under NodeNext; tests import their TypeScript sources through the same suffix.
+---
+
+## 2026-10-21 17:32:18 EEST
+- Task id: TASK-001
+- What was implemented:
+  - Added the AgentAdapter and FinalMessageResult contracts, including the result kinds needed by future adapters.
+  - Added a pure Codex adapter that preserves the existing argument order and override handling while reading the final message from stdout.
+- Files changed:
+  - src/agents/types.ts
+  - src/agents/codex.ts
+  - test/agents/codex.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/agents/codex.test.ts` failed because the adapter module did not exist.
+  - GREEN: the same command passed all 6 tests after adding the adapter.
+  - The tests verify the default argument list, unchanged model and effort overrides, explicit empty overrides, absence of `--output-last-message`, missing responses for empty and whitespace stdout, and unchanged non-empty message text.
+  - `pnpm typecheck` passed.
+  - `pnpm test` passed: 16 files and 189 tests.
+  - `git diff --check` passed.
+- Learnings for future iterations:
+  - The existing Codex arguments builder remains in use until TASK-005; its ordering and undefined checks are the baseline for the adapter.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
