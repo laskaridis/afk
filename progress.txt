@@ -49,3 +49,25 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-21 17:36:05 EEST
+- Task id: TASK-003
+- What was implemented:
+  - Added the built-in agent registry with Codex and Claude Code, a Codex default, ordered supported names, safe name lookup, and type re-exports.
+- Files changed:
+  - src/agents/index.ts
+  - test/agents/registry.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/agents/registry.test.ts` failed because `src/agents/index.ts` did not exist.
+  - GREEN: the same command passed all 5 tests after adding the registry.
+  - The tests verify the supported-name order, adapter identity, registered default, rejection of unsupported and inherited names, matching keys and adapter names, and type re-exports.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 202 tests; `git diff --check` passed.
+  - Each TASK-003 acceptance criterion is covered by the registry tests or these commands.
+- Learnings for future iterations:
+  - Options and help can use agentNames(); main can use getAgent() and DEFAULT_AGENT.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---

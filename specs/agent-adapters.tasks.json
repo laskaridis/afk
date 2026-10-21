@@ -95,7 +95,7 @@
       "id": "TASK-003",
       "title": "Add the built-in agent registry",
       "objective": "Create src/agents/index.ts that maps agent names to adapters and exposes the default agent and the list of supported names.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-005",
       "requirements_addressed": ["AC-019", "AC-022", "AC-001"],
       "out_of_scope": [
