@@ -223,7 +223,7 @@
       "id": "TASK-006",
       "title": "Capture the last 20 lines of agent stderr per session",
       "objective": "Pipe agent stderr in the session runner, keep only its last 20 lines, and attach them to execution-error results.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-004",
       "requirements_addressed": ["AC-016", "AC-018"],
       "out_of_scope": [

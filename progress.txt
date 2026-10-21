@@ -129,3 +129,32 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-21 17:46:40 EEST
+- Task id: TASK-006
+- What was implemented:
+  - Added a bounded stderr tail collector that handles chunk boundaries, interior blank lines, carriage returns, and partial final lines.
+  - Piped agent stderr in the shared session runner and attached its last 20 lines to every execution-error result. Valid responses, timeouts, and interruptions carry no stderr tail.
+  - Extended the fake Codex fixture to emit stderr for session tests.
+- Files changed:
+  - src/stderr-tail.ts
+  - src/session.ts
+  - src/outcomes.ts
+  - test/stderr-tail.test.ts
+  - test/session.test.ts
+  - test/fixtures/fake-codex.mjs
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/stderr-tail.test.ts test/session.test.ts` failed because the helper was absent and execution errors lacked stderrTail.
+  - GREEN: the focused command passed 26 tests after implementation; `pnpm typecheck` passed.
+  - Collector tests assert 25 lines retain l6 through l25, split chunks form one line, blank and CRLF handling, and a trailing partial line counts toward the limit.
+  - Session tests assert stderr 'boom\\n' on exit 3 yields ['boom'], no stderr yields [], and launch, missing, invalid, and adapter-reported failures always carry an array.
+  - Session tests assert valid responses, timeouts, and interruptions have no stderrTail property; a captured write check verifies fixture stderr does not reach the parent stderr.
+  - `pnpm test` passed: 18 files and 208 tests. Its first run hit the previously observed intermittent CLI fixture startup timeout; the rerun passed. `git diff --check` passed. Read-only implementation review found no blockers.
+- Learnings for future iterations:
+  - The stderr tail is attached only to SessionResult execution errors. TASK-007 can print that field without changing process capture.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---

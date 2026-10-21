@@ -25,6 +25,7 @@ await writeFile(path.join(stateDir, `call-${callNumber}.json`), JSON.stringify({
 }));
 
 if (typeof step.stdout === 'string') process.stdout.write(step.stdout);
+if (typeof step.stderr === 'string') process.stderr.write(step.stderr);
 if (step.ignoreSigint === true) process.on('SIGINT', () => {});
 if (typeof step.sleepMs === 'number') await new Promise(resolve => setTimeout(resolve, step.sleepMs));
 if (typeof step.finalMessage === 'string') {

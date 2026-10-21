@@ -49,26 +49,46 @@ describe('runSession', () => {
 
   it('reports a missing final response when stdout is empty', async () => {
     const { result } = await invoke({});
-    expect(result).toEqual({ kind: 'execution-error', error: { kind: 'missing-response' } });
+    expect(result).toEqual({ kind: 'execution-error', error: { kind: 'missing-response' }, stderrTail: [] });
   });
 
   it('reports whitespace-only output as a missing response', async () => {
     const { result } = await invoke({ finalMessage: '   ' });
-    expect(result).toEqual({ kind: 'execution-error', error: { kind: 'missing-response' } });
+    expect(result).toEqual({ kind: 'execution-error', error: { kind: 'missing-response' }, stderrTail: [] });
   });
 
   it('rejects prose around protocol JSON', async () => {
     const { result } = await invoke({ finalMessage: 'Done! {"outcome":"complete"}' });
     expect(result).toEqual({ kind: 'execution-error', error: {
       kind: 'invalid-response', reason: 'final response is not valid JSON',
-    } });
+    }, stderrTail: [] });
   });
 
   it('prioritizes an unsuccessful process exit over a valid final message', async () => {
     const { result } = await invoke({ exitCode: 3, finalMessage: '{"outcome":"complete"}' });
     expect(result).toEqual({ kind: 'execution-error', error: {
       kind: 'exited-unsuccessfully', exitCode: 3, signal: null,
-    } });
+    }, stderrTail: [] });
+  });
+
+  it('captures stderr on a failed session without writing it to the parent', async () => {
+    const writes: string[] = [];
+    const originalWrite = process.stderr.write;
+    process.stderr.write = ((chunk: string) => { writes.push(chunk); return true; }) as typeof process.stderr.write;
+    try {
+      const { result } = await invoke({ stderr: 'boom\n', exitCode: 3 });
+      expect(result).toEqual({ kind: 'execution-error', error: {
+        kind: 'exited-unsuccessfully', exitCode: 3, signal: null,
+      }, stderrTail: ['boom'] });
+      expect(writes.join('')).not.toContain('boom');
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+  });
+
+  it('does not expose stderr on valid responses', async () => {
+    const { result } = await invoke({ stderr: 'secret\n', finalMessage: '{"outcome":"complete"}' });
+    expect(result).toEqual({ kind: 'response', response: { outcome: 'complete' } });
   });
 
   it('uses JSON printed to stdout as the final response', async () => {
@@ -81,7 +101,7 @@ describe('runSession', () => {
     const { result } = await invoke({ stdout: 'anything' }, { agent });
     expect(result).toEqual({ kind: 'execution-error', error: {
       kind: 'exited-unsuccessfully', exitCode: 0, signal: null, reason: 'r',
-    } });
+    }, stderrTail: [] });
   });
 
   it('maps adapter-invalid output to an invalid response', async () => {
@@ -89,7 +109,7 @@ describe('runSession', () => {
     const { result } = await invoke({ stdout: 'anything' }, { agent });
     expect(result).toEqual({ kind: 'execution-error', error: {
       kind: 'invalid-response', reason: 'bad JSON',
-    } });
+    }, stderrTail: [] });
   });
 
   it('creates no temporary session directory', async () => {
@@ -115,7 +135,7 @@ describe('runSession', () => {
     process.env.TMPDIR = isolatedTmp;
     try {
       const result = await runSession({ agent: codexAdapter, executable: '/nonexistent/codex-missing', leadingArgs: [], cwd: isolatedTmp, prompt: 'x' });
-      expect(result).toMatchObject({ kind: 'execution-error', error: { kind: 'launch-failed' } });
+      expect(result).toMatchObject({ kind: 'execution-error', error: { kind: 'launch-failed' }, stderrTail: [] });
       if (result.kind === 'execution-error' && result.error.kind === 'launch-failed') {
         expect(result.error.message.length).toBeGreaterThan(0);
       }
@@ -138,7 +158,7 @@ describe('runSession', () => {
 
   it('times out a session that exceeds its deadline', async () => {
     const started = Date.now();
-    const { result } = await invoke({ sleepMs: 10000 }, { timeoutSeconds: 1 });
+    const { result } = await invoke({ stderr: 'timeout detail\n', sleepMs: 10000 }, { timeoutSeconds: 1 });
     expect(result).toEqual({ kind: 'timed-out' });
     expect(Date.now() - started).toBeLessThan(4000);
   });
@@ -175,7 +195,7 @@ describe('runSession', () => {
     const timer = setTimeout(() => controller.abort(), 300);
     const started = Date.now();
     try {
-      const { result, call } = await invoke({ sleepMs: 10000 }, { abortSignal: controller.signal });
+      const { result, call } = await invoke({ stderr: 'interruption detail\n', sleepMs: 10000 }, { abortSignal: controller.signal });
       expect(result).toEqual({ kind: 'interrupted' });
       expect(Date.now() - started).toBeLessThan(3000);
       expect(() => process.kill(call.pid, 0)).toThrow();

@@ -8,7 +8,7 @@ export type ExecutionError =
 
 export type SessionResult =
   | { kind: 'response'; response: ProtocolResponse }
-  | { kind: 'execution-error'; error: ExecutionError }
+  | { kind: 'execution-error'; error: ExecutionError; stderrTail?: string[] }
   | { kind: 'timed-out' }
   | { kind: 'interrupted' };
 
