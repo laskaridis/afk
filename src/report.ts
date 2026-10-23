@@ -6,10 +6,11 @@ export function describeExecutionError(error: ExecutionError): string {
     case 'launch-failed':
       return `failed to launch agent: ${error.message}`;
     case 'exited-unsuccessfully':
-      if (error.reason !== undefined) return `agent exited unsuccessfully: ${error.reason}`;
       return error.exitCode !== null
         ? `agent exited unsuccessfully with exit code ${error.exitCode}`
         : `agent exited unsuccessfully due to signal ${error.signal}`;
+    case 'agent-reported-error':
+      return `agent exited unsuccessfully: ${error.reason}`;
     case 'missing-response':
       return 'agent exited without a final response';
     case 'invalid-response':

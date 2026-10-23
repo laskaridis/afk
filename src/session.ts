@@ -122,7 +122,7 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
   if (extracted.kind === 'missing') return executionError({ kind: 'missing-response' });
   if (extracted.kind === 'invalid') return executionError({ kind: 'invalid-response', reason: extracted.reason });
   if (extracted.kind === 'failed') return executionError({
-    kind: 'exited-unsuccessfully', exitCode: 0, signal: null, reason: extracted.reason,
+    kind: 'agent-reported-error', reason: extracted.reason,
   });
 
   const parsed = parseProtocolResponse(extracted.text);

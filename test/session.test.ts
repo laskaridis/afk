@@ -100,7 +100,7 @@ describe('runSession', () => {
     const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => ({ kind: 'failed', reason: 'r' }) };
     const { result } = await invoke({ stdout: 'anything' }, { agent });
     expect(result).toEqual({ kind: 'execution-error', error: {
-      kind: 'exited-unsuccessfully', exitCode: 0, signal: null, reason: 'r',
+      kind: 'agent-reported-error', reason: 'r',
     }, stderrTail: [] });
   });
 

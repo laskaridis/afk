@@ -408,3 +408,28 @@
   - None. The task list and progress log are authorized bookkeeping files required by the code skill.
 - Follow up needed: None.
 ---
+## 2026-10-23 10:58:11 EEST
+- Task id: TASK-018
+- What was implemented:
+  - Added a distinct agent-reported-error execution error and mapped adapter-reported failures to it without a fabricated exit code or signal.
+  - Kept the existing user-visible error wording and removed the optional reason from exited-unsuccessfully.
+- Files changed:
+  - src/outcomes.ts
+  - src/session.ts
+  - src/report.ts
+  - test/session.test.ts
+  - test/report.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: focused report and session tests failed in three cases before the implementation.
+  - GREEN: `pnpm exec vitest run test/report.test.ts test/session.test.ts test/harness.test.ts` passed, including the unchanged Claude error_max_turns scenario (81 tests).
+  - `pnpm typecheck` passed; `pnpm test` passed (20 files, 263 tests).
+  - Session test asserts the error has only kind and reason; report tests cover an exit code, a signal, and unchanged agent-reported wording.
+  - Searched src/ and test/ for exited-unsuccessfully and agent-reported-error to check all uses.
+- Learnings for future iterations:
+  - Non-zero process exits are still classified before adapter extraction; TASK-019 addresses structured failures on non-zero exits.
+- Scope deviations:
+  - The task list already contained uncommitted review-task additions, so its status update stays in the working tree and is not part of this task's commit. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: TASK-019 remains pending.
+---

@@ -2,7 +2,8 @@ import type { ProtocolResponse } from './protocol.js';
 
 export type ExecutionError =
   | { kind: 'launch-failed'; message: string }
-  | { kind: 'exited-unsuccessfully'; exitCode: number | null; signal: string | null; reason?: string }
+  | { kind: 'exited-unsuccessfully'; exitCode: number | null; signal: string | null }
+  | { kind: 'agent-reported-error'; reason: string }
   | { kind: 'missing-response' }
   | { kind: 'invalid-response'; reason: string };
 

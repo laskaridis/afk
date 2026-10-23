@@ -15,7 +15,7 @@ describe('execution error descriptions', () => {
   it.each<[ExecutionError, string]>([
     [{ kind: 'launch-failed', message: 'ENOENT' }, 'failed to launch agent: ENOENT'],
     [{ kind: 'exited-unsuccessfully', exitCode: 3, signal: null }, 'agent exited unsuccessfully with exit code 3'],
-    [{ kind: 'exited-unsuccessfully', exitCode: 0, signal: null, reason: 'Claude reported an error (subtype: x)' }, 'agent exited unsuccessfully: Claude reported an error (subtype: x)'],
+    [{ kind: 'agent-reported-error', reason: 'Claude reported an error (subtype: x)' }, 'agent exited unsuccessfully: Claude reported an error (subtype: x)'],
     [{ kind: 'exited-unsuccessfully', exitCode: null, signal: 'SIGTERM' }, 'agent exited unsuccessfully due to signal SIGTERM'],
     [{ kind: 'missing-response' }, 'agent exited without a final response'],
     [{ kind: 'invalid-response', reason: 'bad JSON' }, 'agent final response is invalid: bad JSON'],
@@ -38,7 +38,7 @@ describe('activity lines', () => {
   });
 
   it('reports an agent supplied failure reason', () => {
-    const error = { kind: 'exited-unsuccessfully', exitCode: 0, signal: null, reason: 'Claude reported an error' } as const;
+    const error = { kind: 'agent-reported-error', reason: 'Claude reported an error' } as const;
     expect(formatExecutionError(error)).toBe('[afk] Execution error: agent exited unsuccessfully: Claude reported an error');
     expect(formatFinalStatus({ kind: 'execution-error', error })).toBe(
       '[afk] Run stopped after a repeated execution error: agent exited unsuccessfully: Claude reported an error',
