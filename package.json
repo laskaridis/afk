@@ -1,7 +1,7 @@
 {
   "name": "@laskaridis/afk",
   "version": "0.2.0",
-  "description": "Run a Codex coding agent unattended, one task per fresh session",
+  "description": "Run a coding agent (Codex, Claude Code) unattended, one task per fresh session",
   "type": "module",
   "bin": {
     "afk": "dist/cli.js"

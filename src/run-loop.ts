@@ -38,6 +38,7 @@ export async function runLoop(
         }
       case 'execution-error':
         log(formatExecutionError(result.error));
+        for (const line of (result.stderrTail ?? []).slice(-20)) log(line);
         consecutiveExecutionErrors++;
         if (consecutiveExecutionErrors >= 2) return { kind: 'execution-error', error: result.error };
         isRetry = true;

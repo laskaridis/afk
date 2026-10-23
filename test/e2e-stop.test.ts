@@ -20,9 +20,9 @@ async function start(opts: Parameters<typeof startCli>[0]): Promise<StartedCli> 
   return result;
 }
 
-async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void> {
+async function waitFor(predicate: () => boolean | Promise<boolean>, timeoutMs = 5000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  while (!predicate()) {
+  while (!(await predicate())) {
     if (Date.now() >= deadline) throw new Error('Timed out waiting for CLI activity');
     await new Promise(resolve => setTimeout(resolve, 20));
   }
@@ -70,7 +70,7 @@ describe('built afk CLI stop outcomes', () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.calls).toHaveLength(2);
-    expect(result.stderr).toContain('[afk] Run stopped after a repeated execution error: Codex exited unsuccessfully with exit code 3');
+    expect(result.stderr).toContain('[afk] Run stopped after a repeated execution error: agent exited unsuccessfully with exit code 3');
   });
 
   it('stops after two invalid final responses', async () => {
@@ -78,7 +78,7 @@ describe('built afk CLI stop outcomes', () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.calls).toHaveLength(2);
-    expect(result.stderr).toContain('[afk] Run stopped after a repeated execution error: Codex final response is invalid');
+    expect(result.stderr).toContain('[afk] Run stopped after a repeated execution error: agent final response is invalid');
   });
 
   it('stops after two missing final responses', async () => {
@@ -96,9 +96,9 @@ describe('built afk CLI stop outcomes', () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.calls).toHaveLength(0);
-    expect(result.stderr.match(/\[afk\] Execution error: failed to launch Codex/g)).toHaveLength(2);
+    expect(result.stderr.match(/\[afk\] Execution error: failed to launch agent/g)).toHaveLength(2);
     expect(result.stderr).toContain('retrying after execution error');
-    expect(result.stderr).toContain('[afk] Run stopped after a repeated execution error: failed to launch Codex');
+    expect(result.stderr).toContain('[afk] Run stopped after a repeated execution error: failed to launch agent');
   });
 
   it('stops at the configured iteration limit', async () => {
@@ -132,16 +132,18 @@ describe('built afk CLI stop outcomes', () => {
     expect(() => process.kill(result.calls[0].pid, 0)).toThrow();
   }, 20000);
 
-  it('streams Codex stdout while the session is running', async () => {
+  it('keeps agent stdout hidden while the session is running', async () => {
     const result = await start({
       args: ['Prompt'],
-      steps: [{ stdout: 'fake activity\n', sleepMs: 2000, ...complete }],
+      steps: [{ stdout: '{"outcome":"complete"}', sleepMs: 2000 }],
     });
 
-    await waitFor(() => result.stdout.includes('fake activity'));
+    await waitFor(async () => (await result.calls()).length === 1);
     expect(result.child.exitCode).toBeNull();
     expect(result.child.signalCode).toBeNull();
+    expect(result.stdout).toBe('');
     expect((await result.closed).exitCode).toBe(0);
+    expect(result.stdout).toBe('');
   }, 20000);
 
   it('does not start another session after Ctrl+C', async () => {
@@ -150,7 +152,7 @@ describe('built afk CLI stop outcomes', () => {
       steps: [{ stdout: 'working\n', sleepMs: 10000, ...repeat }],
     });
 
-    await waitFor(() => result.stderr.includes('Iteration 1/') && result.stdout.includes('working'));
+    await waitFor(async () => result.stderr.includes('Iteration 1/') && (await result.calls()).length === 1);
     const calls = await result.calls();
     expect(calls).toHaveLength(1);
     result.child.kill('SIGINT');

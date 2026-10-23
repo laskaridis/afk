@@ -1,16 +1,19 @@
+import { DEFAULT_AGENT, agentNames } from './agents/index.js';
+
 export const HELP_TEXT = `Usage: afk [options] "prompt"
        afk [options] --prompt-file <path>
        echo "prompt" | afk [options]
 
-Run Codex unattended, one task per fresh session, using the code skill.
+Run a coding agent unattended, one task per fresh session, using the code skill.
 
 Options:
+  --agent <name>                Coding agent to run: ${agentNames().join(', ')} (default: ${DEFAULT_AGENT})
   --prompt-file <path>          Read the prompt from a file
   --cwd <directory>             Workspace for every session (default: current directory)
-  --max-iterations <count>      Maximum number of Codex session launches, retries included (default: 10)
+  --max-iterations <count>      Maximum number of agent session launches, retries included (default: 10)
   --session-timeout <seconds>   Time limit applied to each session separately (default: none)
-  --model <model>               Override the Codex model for every session
-  --reasoning-effort <effort>   Override reasoning effort for every session
+  --model <model>               Model passed to the agent unchanged for every session
+  --reasoning-effort <effort>   Reasoning effort passed to the agent unchanged for every session
   -h, --help                    Show this help and exit
 
 Exit codes:

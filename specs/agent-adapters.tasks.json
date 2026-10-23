@@ -1,0 +1,821 @@
+{
+  "spec_path": "specs/agent-adapters.spec.md",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "Add AgentAdapter types and the Codex adapter",
+      "objective": "Create src/agents/types.ts with the AgentAdapter and FinalMessageResult types and src/agents/codex.ts exporting a pure Codex adapter.",
+      "status": "completed",
+      "story_addressed": "US-005",
+      "requirements_addressed": ["AC-013", "AC-019", "AC-021"],
+      "out_of_scope": [
+        "Do not register the adapter or add a registry (TASK-003).",
+        "Do not change src/session.ts, src/codex-args.ts usage, or any caller.",
+        "Do not delete src/codex-args.ts or test/codex-args.test.ts yet (TASK-005 does that)."
+      ],
+      "existing_context": [
+        "src/codex-args.ts has buildCodexArgs which today adds '--output-last-message <file>'; its argument ordering is the baseline.",
+        "src/outcomes.ts defines ExecutionError and SessionResult.",
+        "Tests live in test/ and use vitest (test/codex-args.test.ts is a style reference)."
+      ],
+      "constraints": [
+        "buildArgs and extractFinalMessage must be pure: no fs, no process, no state.",
+        "Use .js import suffixes like the rest of src/.",
+        "No new runtime dependencies."
+      ],
+      "implementation_guidelines": [
+        "In src/agents/types.ts export: type FinalMessageResult = { kind: 'message'; text: string } | { kind: 'missing' } | { kind: 'invalid'; reason: string } | { kind: 'failed'; reason: string };",
+        "In src/agents/types.ts export interface AgentAdapter { name: string; executable: string; buildArgs(input: { cwd: string; model?: string; effort?: string }): string[]; extractFinalMessage(stdout: string): FinalMessageResult; } exactly as in AC-019.",
+        "In src/agents/codex.ts export const codexAdapter: AgentAdapter with name 'codex' and executable 'codex'.",
+        "codexAdapter.buildArgs returns ['exec','--approve-for-me','--cd',cwd, ...(model ? ['--model',model] : []), ...(effort ? ['--config', `model_reasoning_effort=${JSON.stringify(effort)}`] : []), '-'] (same as the current buildCodexArgs minus '--output-last-message <file>'). Check against undefined, not truthiness, as the current code does.",
+        "codexAdapter.extractFinalMessage returns { kind: 'missing' } when stdout.trim() === '', otherwise { kind: 'message', text: stdout }.",
+        "Add test/agents/codex.test.ts covering buildArgs with and without model/effort, absence of '--output-last-message', and extractFinalMessage for empty, whitespace-only and non-empty stdout."
+      ],
+      "acceptance_criteria": [
+        "buildArgs({cwd:'/w'}) equals ['exec','--approve-for-me','--cd','/w','-'].",
+        "buildArgs({cwd:'/w',model:'m',effort:'high'}) equals ['exec','--approve-for-me','--cd','/w','--model','m','--config','model_reasoning_effort=\"high\"','-'].",
+        "No buildArgs output contains '--output-last-message'.",
+        "extractFinalMessage('') and extractFinalMessage('  \\n') return { kind: 'missing' }; extractFinalMessage('{\"outcome\":\"complete\"}\\n') returns a 'message' result with that text.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "The 'failed' kind of FinalMessageResult is added now for the Claude adapter (is_error) even though Codex never returns it.",
+        "Codex's final message text is passed on unmodified; the protocol parser already handles surrounding whitespace."
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "TASK-002",
+      "title": "Add the Claude Code adapter",
+      "objective": "Create src/agents/claude.ts exporting a pure Claude adapter that builds print-mode arguments and extracts the final message from Claude's JSON stdout.",
+      "status": "completed",
+      "story_addressed": "US-002",
+      "requirements_addressed": ["AC-006", "AC-007", "AC-008", "AC-019", "AC-021"],
+      "out_of_scope": [
+        "Do not register the adapter (TASK-003).",
+        "Do not change session.ts, report.ts or outcomes.ts.",
+        "Do not add pre-flight checks or special handling for an unavailable 'auto' permission mode.",
+        "Do not use bypassPermissions or any full-access permission mode."
+      ],
+      "existing_context": [
+        "src/agents/types.ts and src/agents/codex.ts exist after TASK-001 and define the adapter shape and FinalMessageResult kinds: message, missing, invalid, failed.",
+        "The process exit code and signal are handled by the shared session runner, not the adapter; the adapter only sees stdout of a process that exited with code 0."
+      ],
+      "constraints": [
+        "Pure functions only; no fs, no process access.",
+        "The cwd is set by the session runner via spawn cwd; do not add a cwd flag to Claude's arguments."
+      ],
+      "implementation_guidelines": [
+        "Export const claudeAdapter: AgentAdapter with name 'claude' and executable 'claude'.",
+        "buildArgs returns ['-p','--output-format','json','--permission-mode','auto', ...(model !== undefined ? ['--model',model] : []), ...(effort !== undefined ? ['--effort',effort] : [])]. The prompt is not an argument because it is sent on stdin.",
+        "extractFinalMessage(stdout): if stdout.trim() === '' return { kind: 'missing' }.",
+        "Then JSON.parse(stdout); on a throw return { kind: 'invalid', reason: 'agent output could not be parsed' }. If the parsed value is not a non-null object (e.g. array, string, null) also return that invalid result.",
+        "If the object has is_error === true return { kind: 'failed', reason: <string> } where reason is `Claude reported an error (subtype: ${subtype})` when subtype is a non-empty string, otherwise 'Claude reported an error'.",
+        "If result is not a string or result.trim() === '' return { kind: 'missing' }.",
+        "Otherwise return { kind: 'message', text: result }.",
+        "Add test/agents/claude.test.ts covering every row of the AC-008 table that the adapter can see, plus buildArgs variants."
+      ],
+      "acceptance_criteria": [
+        "buildArgs({cwd:'/w'}) equals ['-p','--output-format','json','--permission-mode','auto'] and never contains 'bypassPermissions'.",
+        "buildArgs({cwd:'/w',model:'m',effort:'high'}) additionally ends with '--model','m','--effort','high'.",
+        "extractFinalMessage('') returns missing; 'not json' returns invalid with reason 'agent output could not be parsed'.",
+        "extractFinalMessage('{\"is_error\":true,\"subtype\":\"error_max_turns\",\"result\":\"x\"}') returns kind 'failed' with a reason containing 'error_max_turns'.",
+        "extractFinalMessage('{\"result\":\"\"}') and extractFinalMessage('{}') return missing.",
+        "extractFinalMessage(JSON.stringify({ is_error: false, result: '{\"outcome\":\"complete\"}' })) returns kind 'message' with text '{\"outcome\":\"complete\"}'.",
+        "extractFinalMessage('[]'), extractFinalMessage('null') and extractFinalMessage('\"x\"') return invalid with reason 'agent output could not be parsed'.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "Claude's JSON fields (result, is_error, subtype) are as stated in the spec Assumptions; TASK-015 verifies them against the real CLI.",
+        "An is_error: true result is checked before the result field is inspected."
+      ],
+      "dependencies": ["TASK-001"]
+    },
+    {
+      "id": "TASK-003",
+      "title": "Add the built-in agent registry",
+      "objective": "Create src/agents/index.ts that maps agent names to adapters and exposes the default agent and the list of supported names.",
+      "status": "completed",
+      "story_addressed": "US-005",
+      "requirements_addressed": ["AC-019", "AC-022", "AC-001"],
+      "out_of_scope": [
+        "Do not wire the registry into options, help, or main yet.",
+        "Do not support loading adapters from outside the package."
+      ],
+      "existing_context": [
+        "codexAdapter in src/agents/codex.ts and claudeAdapter in src/agents/claude.ts exist."
+      ],
+      "constraints": [
+        "There must be exactly one place that lists adapters: the registry object in src/agents/index.ts."
+      ],
+      "implementation_guidelines": [
+        "Export const AGENTS: Record<string, AgentAdapter> = { codex: codexAdapter, claude: claudeAdapter } (build it from the adapters' own .name values or keep keys equal to .name).",
+        "Export const DEFAULT_AGENT = 'codex'.",
+        "Export function agentNames(): string[] returning Object.keys(AGENTS) in insertion order (codex, claude).",
+        "Export function getAgent(name: string): AgentAdapter | undefined that uses Object.hasOwn so names like 'toString' or '__proto__' return undefined.",
+        "Re-export the AgentAdapter and FinalMessageResult types.",
+        "Add test/agents/registry.test.ts."
+      ],
+      "acceptance_criteria": [
+        "agentNames() equals ['codex','claude'].",
+        "getAgent('codex') returns codexAdapter; getAgent('claude') returns claudeAdapter.",
+        "getAgent('nope'), getAgent(''), getAgent('toString') and getAgent('__proto__') return undefined.",
+        "DEFAULT_AGENT is 'codex' and getAgent(DEFAULT_AGENT) is defined.",
+        "For every registry entry, key === adapter.name (asserted in a test).",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [],
+      "dependencies": ["TASK-001", "TASK-002"]
+    },
+    {
+      "id": "TASK-004",
+      "title": "Make status and error wording agent-neutral",
+      "objective": "Replace every 'Codex' mention in src/report.ts with agent-neutral wording and support an agent-reported failure reason in the exited-unsuccessfully error.",
+      "status": "completed",
+      "story_addressed": "US-003",
+      "requirements_addressed": ["AC-011", "AC-008", "AC-012"],
+      "out_of_scope": [
+        "Do not print stderr tails (TASK-007).",
+        "Do not change exit codes, protocol parsing, or the retry policy."
+      ],
+      "existing_context": [
+        "src/report.ts has describeExecutionError, formatIterationStart and formatFinalStatus containing 'Codex'.",
+        "src/outcomes.ts defines ExecutionError; 'exited-unsuccessfully' has exitCode and signal.",
+        "test/report.test.ts and test/run-loop.test.ts assert the current wording and must be updated."
+      ],
+      "constraints": [
+        "Wording must match the spec examples exactly.",
+        "Existing consumers constructing exited-unsuccessfully errors must still compile (new field optional)."
+      ],
+      "implementation_guidelines": [
+        "In src/outcomes.ts add an optional field `reason?: string` to the 'exited-unsuccessfully' ExecutionError variant.",
+        "In describeExecutionError: launch-failed -> `failed to launch agent: ${message}`; exited-unsuccessfully with reason defined -> `agent exited unsuccessfully: ${reason}`; else with exitCode !== null -> `agent exited unsuccessfully with exit code ${exitCode}`; else `agent exited unsuccessfully due to signal ${signal}`; missing-response -> 'agent exited without a final response'; invalid-response -> `agent final response is invalid: ${reason}`.",
+        "formatIterationStart non-retry -> `[afk] Iteration ${n}/${max}: starting agent session`.",
+        "formatFinalStatus timed-out -> `[afk] Run stopped: agent session timed out after ${timeoutSeconds} seconds.`",
+        "Run `grep -n \"Codex\" src/report.ts src/run-loop.ts src/outcomes.ts` and confirm no matches remain.",
+        "Update test/report.test.ts, test/run-loop.test.ts and any other test asserting the old strings (grep tests for 'Codex')."
+      ],
+      "acceptance_criteria": [
+        "formatIterationStart(1,10,false) === '[afk] Iteration 1/10: starting agent session'.",
+        "describeExecutionError({kind:'exited-unsuccessfully',exitCode:3,signal:null}) === 'agent exited unsuccessfully with exit code 3'.",
+        "describeExecutionError({kind:'exited-unsuccessfully',exitCode:0,signal:null,reason:'Claude reported an error (subtype: x)'}) === 'agent exited unsuccessfully: Claude reported an error (subtype: x)'.",
+        "describeExecutionError for launch-failed, missing-response and invalid-response produce 'failed to launch agent: <message>', 'agent exited without a final response' and 'agent final response is invalid: <reason>'.",
+        "formatFinalStatus({kind:'timed-out',timeoutSeconds:1800}) === '[afk] Run stopped: agent session timed out after 1800 seconds.'.",
+        "src/report.ts, src/run-loop.ts and src/outcomes.ts do not contain the text 'Codex' (case-sensitive).",
+        "Every test (unit and e2e) that asserted the old 'Codex' wording is updated to the new wording in this task.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "Other src/ files (help.ts, main.ts, session.ts) are handled by their own tasks."
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "TASK-005",
+      "title": "Run sessions through an adapter with captured stdout",
+      "objective": "Refactor src/session.ts to take an AgentAdapter, capture stdout instead of inheriting it, extract the final message via the adapter, and stop using temporary files.",
+      "status": "completed",
+      "story_addressed": "US-005",
+      "requirements_addressed": ["AC-010", "AC-013", "AC-014", "AC-020", "AC-008"],
+      "out_of_scope": [
+        "Do not capture or tail stderr (TASK-006).",
+        "Do not change the CLI options or add --agent handling to main.ts (TASK-009). The only allowed main.ts change is the temporary one in the implementation guidelines.",
+        "Do not change timeout, interruption or kill behavior."
+      ],
+      "existing_context": [
+        "src/session.ts spawns with stdio ['pipe','inherit','inherit'], creates a temp dir, passes buildCodexArgs with outputFile, and reads the file after exit.",
+        "SessionRequest has executable, leadingArgs, cwd, prompt, model, reasoningEffort, timeoutSeconds, terminationGraceMs, abortSignal.",
+        "test/session.test.ts uses test/fixtures/fake-codex.mjs which writes step.finalMessage to the --output-last-message path.",
+        "test/main.test.ts and test/helpers/run-cli.ts also depend on the fixture and on SessionRequest."
+      ],
+      "constraints": [
+        "Keep SessionRequest.executable and leadingArgs as optional-override test hooks: executable defaults to adapter.executable and leadingArgs to [].",
+        "stdout must never be written to the terminal.",
+        "No mkdtemp, readFile, rm or any other fs usage may remain in session.ts."
+      ],
+      "implementation_guidelines": [
+        "Add `agent: AgentAdapter` to SessionRequest; make `executable` and `leadingArgs` optional.",
+        "Keep the SessionRequest field name reasoningEffort (do not rename it) and pass its value as `effort` to adapter.buildArgs.",
+        "In src/main.ts, add `agent: codexAdapter` (imported from src/agents/codex.js) to the runSession call so typecheck keeps passing; TASK-009 replaces it with options.agent.",
+        "Spawn with stdio ['pipe','pipe','inherit'] for now (TASK-006 changes stderr). Collect stdout chunks with child.stdout.setEncoding('utf8') and a 'data' handler into a string, and resolve the process result only after 'close' (which fires after stdout ends).",
+        "Include the captured stdout in the 'closed' ProcessResult.",
+        "Remove the tempDir/outputFile/try-finally code. After exit code 0, call request.agent.extractFinalMessage(stdout): 'missing' -> execution-error missing-response; 'invalid' -> invalid-response with the reason; 'failed' -> exited-unsuccessfully with exitCode 0, signal null and reason; 'message' -> parseProtocolResponse(text) as today.",
+        "Delete src/codex-args.ts and test/codex-args.test.ts (superseded by src/agents/codex.ts and its tests).",
+        "Update test/fixtures/fake-codex.mjs: when step.finalMessage is a string write it to process.stdout (plus a trailing newline) instead of to --output-last-message; remove the --output-last-message handling.",
+        "Update test/session.test.ts, test/main.test.ts, test/helpers/run-cli.ts and e2e tests so they pass agent: codexAdapter (or go through main), and add tests: stdout of the fixture is not written to the parent's stdout; no 'afk-' directory is created in os.tmpdir() during a session; argv recorded by the fixture does not contain '--output-last-message'."
+      ],
+      "acceptance_criteria": [
+        "A session whose fixture writes a valid protocol message to stdout and exits 0 returns { kind: 'response', ... }.",
+        "Exit code 0 with empty or whitespace-only stdout returns execution-error missing-response.",
+        "A fixture exiting non-zero returns exited-unsuccessfully with the exit code; timeouts and abort still return timed-out and interrupted as before (existing tests pass).",
+        "An adapter stub whose extractFinalMessage returns { kind: 'failed', reason: 'r' } yields execution-error exited-unsuccessfully with exitCode 0 and reason 'r'.",
+        "Agent stdout does not appear in the test process's stdout during runSession.",
+        "src/session.ts contains no imports from node:fs/promises, node:os or node:path, and src/codex-args.ts no longer exists.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "The remaining inherited stderr is a temporary state fixed by TASK-006.",
+        "The test hook override keeps using executable/leadingArgs on SessionRequest so existing fixture-based tests keep working."
+      ],
+      "dependencies": ["TASK-001", "TASK-004"]
+    },
+    {
+      "id": "TASK-006",
+      "title": "Capture the last 20 lines of agent stderr per session",
+      "objective": "Pipe agent stderr in the session runner, keep only its last 20 lines, and attach them to execution-error results.",
+      "status": "completed",
+      "story_addressed": "US-004",
+      "requirements_addressed": ["AC-016", "AC-018"],
+      "out_of_scope": [
+        "Do not print the lines (TASK-007).",
+        "Do not write stderr to any file."
+      ],
+      "existing_context": [
+        "After TASK-005, src/session.ts spawns with stdio ['pipe','pipe','inherit'] and builds execution-error SessionResults in one place.",
+        "src/outcomes.ts defines SessionResult."
+      ],
+      "constraints": [
+        "Memory use must be bounded: do not accumulate the whole stderr; keep at most the last 20 complete lines plus the current partial line.",
+        "Stderr must not be shown live."
+      ],
+      "implementation_guidelines": [
+        "In src/outcomes.ts add `stderrTail?: string[]` to the SessionResult 'execution-error' variant (not to ExecutionError).",
+        "In src/session.ts change stdio to ['pipe','pipe','pipe'] and read child.stderr with setEncoding('utf8').",
+        "Create a small exported helper in src/stderr-tail.ts: createStderrTail(limit = 20) returning { push(chunk: string): void; lines(): string[] }. It splits on '\\n' (strip a trailing '\\r'), carries the partial last line across chunks, keeps only the last `limit` lines, and lines() includes a non-empty trailing partial line. Empty lines inside the output are kept; a final empty remainder is not counted as a line.",
+        "Attach `stderrTail: tail.lines()` to every execution-error result produced after the process closed (non-zero exit, signal, missing, invalid, failed), and for launch-failed too (it will be []). The field is always an array on execution-error results ([] when nothing was written). timed-out, interrupted and response results never carry the field.",
+        "Add test/stderr-tail.test.ts and extend the fixture (test/fixtures/fake-codex.mjs) with `step.stderr` (string written to process.stderr before exit)."
+      ],
+      "acceptance_criteria": [
+        "createStderrTail: pushing 25 lines 'l1'..'l25' yields lines() equal to 'l6'..'l25'.",
+        "createStderrTail: a line split across two push calls ('ab' then 'c\\n') yields ['abc'].",
+        "A session whose fixture writes stderr 'boom\\n' and exits 3 returns execution-error with stderrTail ['boom'].",
+        "A session whose fixture writes no stderr and exits 3 returns execution-error with stderrTail [].",
+        "A session ending with a valid protocol response, a timeout or an interruption has no stderrTail property on its result.",
+        "Fixture stderr is not written to the test process's stderr.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "Lines are split on '\\n' only; ANSI sequences are left as is."
+      ],
+      "dependencies": ["TASK-005"]
+    },
+    {
+      "id": "TASK-007",
+      "title": "Print the stderr tail after an execution-error line",
+      "objective": "Make the run loop print up to 20 captured stderr lines directly after each '[afk] Execution error: …' line.",
+      "status": "completed",
+      "story_addressed": "US-004",
+      "requirements_addressed": ["AC-017", "AC-018", "AC-012"],
+      "out_of_scope": [
+        "Do not print stderr after the final status line.",
+        "Do not print stderr for response, timed-out or interrupted results."
+      ],
+      "existing_context": [
+        "src/run-loop.ts logs formatExecutionError(result.error) for each execution-error result via the log callback; main.ts writes each logged line plus '\\n' to stderr.",
+        "SessionResult execution-error carries optional stderrTail after TASK-006."
+      ],
+      "constraints": [
+        "Lines are printed unchanged, in original order, with no prefix or indentation.",
+        "The tail is printed for every execution error, including the first one that leads to a retry."
+      ],
+      "implementation_guidelines": [
+        "In src/run-loop.ts, in the 'execution-error' case, after log(formatExecutionError(result.error)) call log(line) for each of (result.stderrTail ?? []).slice(-20).",
+        "Do not change any other branch.",
+        "Add tests to test/run-loop.test.ts using a stub session runner."
+      ],
+      "acceptance_criteria": [
+        "With a stub result execution-error and stderrTail ['a','b'], the logged lines are '[afk] Execution error: …', 'a', 'b' in that order.",
+        "With no stderrTail or [], only the Execution error line is logged for that result.",
+        "With 30 stderrTail lines only the last 20 are logged.",
+        "In a run with two consecutive execution errors, each error's tail follows its own Execution error line and the final status line is logged after the second tail.",
+        "No tail lines are logged for response, timed-out or interrupted results.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [],
+      "dependencies": ["TASK-004", "TASK-006"]
+    },
+    {
+      "id": "TASK-008",
+      "title": "Parse and validate the --agent option",
+      "objective": "Add --agent to parseOptions with default 'codex' and an error listing supported names for unsupported or empty values.",
+      "status": "completed",
+      "story_addressed": "US-001",
+      "requirements_addressed": ["AC-001", "AC-002", "AC-003", "AC-004", "AC-022"],
+      "out_of_scope": [
+        "Do not change main.ts or help text.",
+        "Do not rename --reasoning-effort."
+      ],
+      "existing_context": [
+        "src/options.ts parseOptions uses node:util parseArgs, checks help first via requestsHelp, then validates values and returns { ok:false, message } on errors.",
+        "main.ts prints option errors via formatOptionError and returns exit code 2.",
+        "src/agents/index.ts provides DEFAULT_AGENT, agentNames() and getAgent()."
+      ],
+      "constraints": [
+        "Supported names in the error must come from agentNames(), not a hard-coded list.",
+        "Help detection must still run before everything else so --help wins over an invalid --agent."
+      ],
+      "implementation_guidelines": [
+        "Add `agent: { type: 'string' }` to the parseArgs options.",
+        "Add `agent: AgentAdapter` to CliOptions.",
+        "Immediately after the existing --model/--reasoning-effort checks and before the cwd checks, if values.agent !== undefined and getAgent(values.agent) is undefined (this includes the empty string), return { ok: false, message: `--agent must be one of: ${agentNames().join(', ')}, got \"${values.agent}\"` }.",
+        "Set options.agent = getAgent(values.agent ?? DEFAULT_AGENT) (non-null assertion after validation).",
+        "Add tests to test/options.test.ts."
+      ],
+      "acceptance_criteria": [
+        "parseOptions([...]) with no --agent returns options.agent.name === 'codex'.",
+        "--agent claude gives options.agent.name === 'claude'; --agent codex gives 'codex'.",
+        "--agent gemini returns ok:false with a message containing 'codex' and 'claude'.",
+        "['--agent',''] and ['--agent='] return ok:false with the same supported-names message.",
+        "--agent with no value returns ok:false (parseArgs error).",
+        "['--agent','bogus','--help'] returns { ok: true, help: true }.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "Names are case-sensitive ('Claude' is unsupported).",
+        "A whitespace-only value is unsupported because it does not match a registry key."
+      ],
+      "dependencies": ["TASK-003"]
+    },
+    {
+      "id": "TASK-009",
+      "title": "Wire the selected agent through main and the session runner",
+      "objective": "Make main() pass options.agent to every runSession call and rename the test-only launcher override from io.codex to io.launcher.",
+      "status": "completed",
+      "story_addressed": "US-001",
+      "requirements_addressed": ["AC-001", "AC-002", "AC-003", "AC-005"],
+      "out_of_scope": [
+        "Do not change help text or README.",
+        "Do not translate or validate model/effort values."
+      ],
+      "existing_context": [
+        "src/main.ts calls runSession with executable: io.codex?.executable ?? 'codex' and leadingArgs: io.codex?.leadingArgs ?? [].",
+        "test/main.test.ts passes `codex: { executable, leadingArgs }` in MainIo; test/helpers/run-cli.ts creates a 'codex' shim on PATH.",
+        "After TASK-005, SessionRequest has agent and optional executable/leadingArgs; after TASK-008, options.agent exists."
+      ],
+      "constraints": [
+        "The same adapter is used for every iteration including retries.",
+        "model and reasoningEffort are passed through unchanged."
+      ],
+      "implementation_guidelines": [
+        "In src/main.ts replace the MainIo field `codex?` with `launcher?: { executable: string; leadingArgs: string[] }`.",
+        "In the runSession call pass agent: options.agent, executable: io.launcher?.executable, leadingArgs: io.launcher?.leadingArgs.",
+        "Update test/main.test.ts and any other tests to use `launcher`.",
+        "Update test/helpers/run-cli.ts so the shim directory can create shims named after the agent under test (parameterize the shim name, default 'codex').",
+        "Add tests in test/main.test.ts: no --agent runs the codex adapter (fixture argv starts with 'exec'); --agent claude runs the claude adapter (argv starts with '-p'); with a 2-step run where step 1 fails and step 2 succeeds, both calls use the same adapter's args; --model and --reasoning-effort values appear unchanged in argv (claude: --model/--effort; codex: --model/--config)."
+      ],
+      "acceptance_criteria": [
+        "main(['--agent','claude',...]) with a launcher override spawns a process whose argv begins with '-p','--output-format','json','--permission-mode','auto'.",
+        "main with no --agent spawns a process whose argv begins with 'exec','--approve-for-me'.",
+        "An invalid --agent exits with code 2, prints an 'afk: option error:' line on stderr and spawns no session (fixture call count 0).",
+        "`grep -rn \"io.codex\\|codex?:\" src test` returns no matches.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "The Claude fixture does not exist yet, so the --agent claude test in this task launches test/fixtures/fake-codex.mjs through the launcher override and asserts only on the recorded argv, not on the run outcome or exit code; full Claude behavior tests are in TASK-011, TASK-016 and TASK-017."
+      ],
+      "dependencies": ["TASK-005", "TASK-008"]
+    },
+    {
+      "id": "TASK-010",
+      "title": "Make help text agent-neutral and document --agent",
+      "objective": "Rewrite src/help.ts so it describes 'the coding agent', documents --agent <name> with the supported names and default, and states that model/effort values pass through unchanged.",
+      "status": "completed",
+      "story_addressed": "US-006",
+      "requirements_addressed": ["AC-004", "AC-024", "AC-022"],
+      "out_of_scope": [
+        "Do not change README or package.json.",
+        "Do not change option behavior."
+      ],
+      "existing_context": [
+        "src/help.ts exports a HELP_TEXT constant string; test/help.test.ts asserts on it; main.ts writes it to stdout.",
+        "agentNames() and DEFAULT_AGENT exist in src/agents/index.ts."
+      ],
+      "constraints": [
+        "Supported names in help come from agentNames(), so HELP_TEXT must be built with a template using agentNames().join(', ').",
+        "Keep the existing Exit codes section and all other options unchanged apart from wording."
+      ],
+      "implementation_guidelines": [
+        "Change the description line to 'Run a coding agent unattended, one task per fresh session, using the code skill.'",
+        "Add the line `  --agent <name>                Coding agent to run: ${agentNames().join(', ')} (default: ${DEFAULT_AGENT})` before --prompt-file, keeping column alignment with neighbouring options.",
+        "--max-iterations: 'Maximum number of agent session launches, retries included (default: 10)'.",
+        "--model: 'Model passed to the agent unchanged for every session'; --reasoning-effort: 'Reasoning effort passed to the agent unchanged for every session'.",
+        "Update test/help.test.ts."
+      ],
+      "acceptance_criteria": [
+        "HELP_TEXT contains '--agent <name>', 'codex, claude' and '(default: codex)'.",
+        "After removing the substrings 'codex, claude' and '(default: codex)' from HELP_TEXT, a case-insensitive search for 'codex' finds nothing (asserted in test/help.test.ts).",
+        "HELP_TEXT contains 'coding agent' and 'passed to the agent unchanged' for both --model and --reasoning-effort.",
+        "`afk --agent bogus --help` exits 0 and prints the help (covered by a main/options test).",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "The lowercase names codex/claude are allowed in help because they are agent names, not Codex branding."
+      ],
+      "dependencies": ["TASK-008"]
+    },
+    {
+      "id": "TASK-011",
+      "title": "Add Claude fixture and shared harness tests for protocol outcomes",
+      "objective": "Create a fake Claude executable fixture, a shared per-agent fixture helper, and test/harness.test.ts running the protocol-outcome scenarios against every registered adapter.",
+      "status": "completed",
+      "story_addressed": "US-005",
+      "requirements_addressed": ["AC-023", "AC-012", "AC-008"],
+      "out_of_scope": [
+        "Do not require real agent installations.",
+        "Do not change production code; if a new test exposes a defect, stop and report it instead of fixing it.",
+        "Do not delete existing tests that still apply.",
+        "Do not add retry, limit, timeout, abort or stderr scenarios (TASK-016, TASK-017)."
+      ],
+      "existing_context": [
+        "test/fixtures/fake-codex.mjs reads steps from FAKE_CODEX_STATE_DIR/steps.json, records calls, supports stdout, finalMessage, exitCode, sleepMs, ignoreSigint and (after TASK-006) stderr.",
+        "After TASK-005 the Codex fixture writes finalMessage to stdout.",
+        "test/session.test.ts, test/run-loop.test.ts, test/main.test.ts and test/e2e-*.test.ts cover current behavior for Codex only."
+      ],
+      "constraints": [
+        "Both fixtures must use the same step format so one test table drives both.",
+        "Each fixture emits its final message the way the real agent does."
+      ],
+      "implementation_guidelines": [
+        "Create test/fixtures/fake-claude.mjs, a copy of the fake-codex behavior except: when step.finalMessage is a string, write JSON.stringify({type:'result',subtype:'success',is_error:false,result:step.finalMessage}) to stdout; when step.claudeError is a string write JSON.stringify({type:'result',subtype:step.claudeError,is_error:true,result:'error'}); step.stdout still writes raw stdout. Use env var FAKE_AGENT_STATE_DIR in both fixtures (keep FAKE_CODEX_STATE_DIR as a fallback in fake-codex.mjs so old tests keep passing).",
+        "Create test/helpers/agent-fixtures.ts exporting `AGENT_FIXTURES: Record<string, string>` (agent name -> absolute fixture path) and a helper `runAgentScenario(agentName, steps, extraArgs?, opts?)` that writes steps.json to a fresh state dir, calls main() with `--agent <name>` and the launcher override pointing at that fixture, and returns { exitCode, stderrLines, stdout, calls }.",
+        "Create test/harness.test.ts with `describe.each(agentNames())`. For each agent run these scenarios and assert the exact [afk] stderr lines and exit code: repeat then complete (exit 0); blocked (exit 1, '[afk] Run blocked: …'); fail then complete (Task failed line); invalid protocol text (invalid response wording); empty stdout (missing response wording).",
+        "Inside each scenario test, also assert the stderr lines and exit code are identical to those produced for 'codex' (AC-012) by running the codex fixture for the same steps in the same test."
+      ],
+      "acceptance_criteria": [
+        "test/harness.test.ts runs every scenario listed above for both 'codex' and 'claude' and passes.",
+        "The test suite does not call any real codex or claude binary (works with PATH lacking both).",
+        "Each scenario asserts that stderr text and exit code are identical between codex and claude.",
+        "Adding a third entry to the registry would automatically add a describe.each case (the suite iterates agentNames(); a test asserts the fixture table has an entry for every registered name and fails otherwise).",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "The fixture state dir env var is FAKE_AGENT_STATE_DIR; test/helpers/run-cli.ts and existing tests that set FAKE_CODEX_STATE_DIR keep working through the fallback."
+      ],
+      "dependencies": ["TASK-007", "TASK-009"]
+    },
+    {
+      "id": "TASK-016",
+      "title": "Add shared harness tests for retries, limits, timeout and interruption",
+      "objective": "Extend test/harness.test.ts so that retry, iteration-limit, timeout and interruption scenarios run against every registered adapter with identical output.",
+      "status": "completed",
+      "story_addressed": "US-005",
+      "requirements_addressed": ["AC-023", "AC-009", "AC-011", "AC-012"],
+      "out_of_scope": [
+        "Do not change production code; if a test exposes a defect, stop and report it.",
+        "Do not add stderr-tail or Claude-only scenarios (TASK-017)."
+      ],
+      "existing_context": [
+        "test/helpers/agent-fixtures.ts and test/harness.test.ts exist after TASK-011 and provide runAgentScenario and the describe.each(agentNames()) structure.",
+        "Fixture steps support sleepMs and exitCode."
+      ],
+      "constraints": [
+        "Use --session-timeout 1 and a small termination grace so each scenario finishes in about 3 seconds or less."
+      ],
+      "implementation_guidelines": [
+        "Add scenarios inside the existing describe.each: first launch fails (exit 3) then success (stderr has the retry line and an '[afk] Execution error: agent exited unsuccessfully with exit code 3' line, exit 0); two consecutive execution errors (exit 1, final line contains 'Run stopped after a repeated execution error'); iteration limit reached with repeat responses (exit 1, existing limit wording); timeout via sleepMs with --session-timeout 1 (exit 1, line contains 'agent session timed out after 1 seconds', no retry); interruption via AbortController (exit 130, 'Run interrupted by user.', no retry).",
+        "In each scenario assert stderr lines and exit code equal those of the codex run for the same steps."
+      ],
+      "acceptance_criteria": [
+        "Each listed scenario passes for both 'codex' and 'claude'.",
+        "For timeout and interruption the fixture call count is 1 (no retry).",
+        "stderr lines and exit code are identical between codex and claude for every scenario.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "Existing wording for the retry line, iteration limit and interruption is whatever src/report.ts and src/run-loop.ts currently produce; copy it from the existing tests."
+      ],
+      "dependencies": ["TASK-011"]
+    },
+    {
+      "id": "TASK-017",
+      "title": "Add shared stderr-tail tests and Claude-specific harness tests",
+      "objective": "Extend test/harness.test.ts with stderr-tail scenarios for every adapter and with Claude-only result classification scenarios.",
+      "status": "completed",
+      "story_addressed": "US-004",
+      "requirements_addressed": ["AC-017", "AC-018", "AC-008", "AC-023"],
+      "out_of_scope": [
+        "Do not change production code; if a test exposes a defect, stop and report it."
+      ],
+      "existing_context": [
+        "test/helpers/agent-fixtures.ts, test/fixtures/fake-codex.mjs and test/fixtures/fake-claude.mjs exist after TASK-011.",
+        "The fixtures support step.stderr (TASK-006); fake-claude.mjs supports step.claudeError."
+      ],
+      "constraints": [
+        "Claude-only scenarios must not run for codex."
+      ],
+      "implementation_guidelines": [
+        "Inside describe.each: a step that writes 'boom\\n' to stderr and exits 3 produces stderr lines in order: '[afk] Execution error: …', 'boom' (then the retry/next lines).",
+        "Inside describe.each: a step with 25 stderr lines 'l1'..'l25' and exit 3 prints only 'l6'..'l25' after the Execution error line.",
+        "Inside describe.each: successful, timed-out and interrupted sessions that wrote stderr 'noise' print no 'noise' line.",
+        "In a separate Claude-only describe: step.claudeError 'error_max_turns' yields a stderr line containing 'agent exited unsuccessfully' and 'error_max_turns'; step.stdout 'not json' yields a line containing 'agent final response is invalid: agent output could not be parsed'."
+      ],
+      "acceptance_criteria": [
+        "The three shared stderr scenarios pass for both 'codex' and 'claude'.",
+        "The Claude-only scenarios pass.",
+        "stderr output and exit code of the shared stderr scenarios are identical between codex and claude.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [],
+      "dependencies": ["TASK-011"]
+    },
+    {
+      "id": "TASK-012",
+      "title": "Test that runs write no files and print no progress lines",
+      "objective": "Add tests proving that a run creates no log, temporary or history files and prints only [afk] status lines on stderr, with no heartbeat lines.",
+      "status": "completed",
+      "story_addressed": "US-003",
+      "requirements_addressed": ["AC-014", "AC-015", "AC-010"],
+      "out_of_scope": [
+        "Do not change production code unless a test reveals a defect."
+      ],
+      "existing_context": [
+        "test/helpers/agent-fixtures.ts (TASK-011) exports AGENT_FIXTURES and runAgentScenario for running main() against each agent.",
+        "Both fixtures support step.stderr (TASK-006), which writes a string to the agent's stderr.",
+        "afk uses os.tmpdir() only through the removed session temp dir."
+      ],
+      "constraints": [
+        "Tests must not depend on real wall-clock time longer than about 3 seconds."
+      ],
+      "implementation_guidelines": [
+        "Create test/no-side-effects.test.ts using describe.each(agentNames()); for each agent: set TMPDIR to a fresh empty temp directory (via process.env before the run, restored after), use a fresh empty cwd workspace, run a 2-iteration scenario (repeat, complete) where the fixture sleeps 1500 ms in step 1 and every step writes 'AGENT-NOISE\\n' to the agent's stderr via step.stderr. Do not use step.stdout: the agent's stdout is its final message, so extra stdout text would make the response invalid.",
+        "After the run, list both directories (excluding the fixture state dir which is separate) and assert they are empty.",
+        "Assert every captured stderr line starts with '[afk] ', that afk's stdout and stderr contain no 'AGENT-NOISE', and that neither contains the text '\"outcome\"' (the agent's final message must not be echoed).",
+        "Assert the stderr lines are exactly the expected 2 iteration lines plus the final status line (no periodic lines)."
+      ],
+      "acceptance_criteria": [
+        "For both codex and claude the run leaves the temp directory and the workspace directory empty.",
+        "For both agents stderr consists of exactly: '[afk] Iteration 1/10: starting agent session', '[afk] Iteration 2/10: starting agent session', '[afk] Run complete: the code skill reported feature completion.'.",
+        "Neither the agent's stderr text ('AGENT-NOISE') nor its final message (any text containing '\"outcome\"') appears on afk's stdout or stderr.",
+        "`pnpm test` passes."
+      ],
+      "assumptions": [
+        "Using TMPDIR override is sufficient to detect stray temp files on macOS and Linux (os.tmpdir() honors TMPDIR)."
+      ],
+      "dependencies": ["TASK-011"]
+    },
+    {
+      "id": "TASK-013",
+      "title": "Rewrite the README for agent-neutral usage",
+      "objective": "Update README.md to describe afk as agent-neutral, document --agent, quiet output and stderr tails, and add a 'Supported agents' section.",
+      "status": "completed",
+      "story_addressed": "US-006",
+      "requirements_addressed": ["AC-025", "AC-010", "AC-017"],
+      "out_of_scope": [
+        "Do not change the CLI code, help text, version or changelog.",
+        "Do not describe agents other than Codex and Claude Code."
+      ],
+      "existing_context": [
+        "README.md currently names Codex throughout (lines about prerequisites, options table, output section 'Codex's own output streams straight to your terminal', Ctrl+C, retry and permission notes).",
+        "The options table lists --max-iterations, --model, --reasoning-effort with Codex wording."
+      ],
+      "constraints": [
+        "Keep existing headings and structure where possible; only add a 'Supported agents' section.",
+        "Statements must match the implemented behavior in the spec."
+      ],
+      "implementation_guidelines": [
+        "Replace generic uses of 'Codex' with 'the coding agent' (or 'the agent') except in the Supported agents section.",
+        "Add `--agent <name>` to the options table: supported values codex, claude; default codex.",
+        "State that --model and --reasoning-effort are passed to the agent unchanged and that afk does not validate them.",
+        "Replace the output section: agent output is not shown; only [afk] status lines on stderr; on an execution error the last 20 lines of the agent's stderr follow the Execution error line. Update the example block to 'starting agent session'.",
+        "Add a '## Supported agents' section with a subsection per agent. Codex: prerequisites 'Codex CLI installed and authenticated, with --approve-for-me support'; launched as `codex exec --approve-for-me --cd <workspace> [--model …] [--config model_reasoning_effort=…] -` with the prompt on stdin and the final message read from stdout; honors model and reasoning effort. Claude Code: prerequisites 'Claude Code CLI installed and authenticated, auto permission mode available for the account and model, and the code skill discoverable by Claude Code (for example under .claude/skills)'; launched as `claude -p --output-format json --permission-mode auto [--model …] [--effort …]` in the workspace with the prompt on stdin; honors model (--model) and reasoning effort (passed as --effort).",
+        "Mention that a missing executable is reported as a launch failure and retried once."
+      ],
+      "acceptance_criteria": [
+        "README.md contains a heading 'Supported agents' with Codex and Claude Code subsections listing prerequisites, launch command shape and honored settings.",
+        "README.md documents `--agent` with values codex and claude and default codex.",
+        "README.md no longer contains the phrase 'streams straight to your terminal' nor 'starting Codex session'.",
+        "Outside the Supported agents section, 'Codex' appears only where it names the agent option value or links to the Codex project.",
+        "README states that the last 20 lines of agent stderr are printed after an execution error."
+      ],
+      "assumptions": [
+        "The README's first paragraph may mention both agents by name as examples."
+      ],
+      "dependencies": ["TASK-010"]
+    },
+    {
+      "id": "TASK-014",
+      "title": "Make the package description agent-neutral",
+      "objective": "Update the description field in package.json so it no longer names Codex as the only agent.",
+      "status": "completed",
+      "story_addressed": "US-006",
+      "requirements_addressed": ["AC-026"],
+      "out_of_scope": [
+        "Do not bump the version or change any other package.json field.",
+        "Do not edit pnpm-lock.yaml."
+      ],
+      "existing_context": [
+        "package.json description is 'Run a Codex coding agent unattended, one task per fresh session'.",
+        "test/package.test.ts checks package metadata and may assert on the description."
+      ],
+      "constraints": ["Keep the JSON valid and formatting (2-space indent) unchanged."],
+      "implementation_guidelines": [
+        "Set description to 'Run a coding agent (Codex, Claude Code) unattended, one task per fresh session'.",
+        "Update test/package.test.ts if it asserts the old description; add an assertion that the description does not equal the old string."
+      ],
+      "acceptance_criteria": [
+        "package.json description equals 'Run a coding agent (Codex, Claude Code) unattended, one task per fresh session'.",
+        "`git diff --stat` for this task touches only package.json and (if needed) test/package.test.ts.",
+        "`pnpm test` passes."
+      ],
+      "assumptions": [
+        "Mentioning both agent names as examples is acceptable because it does not claim Codex is the only agent."
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "TASK-015",
+      "title": "Run the manual smoke check against the real agents",
+      "objective": "Run the AC-027 manual smoke checks with the real Codex and Claude Code CLIs and record the evidence with CLI versions in specs/agent-adapters.smoke-check.md.",
+      "status": "completed",
+      "story_addressed": "US-007",
+      "requirements_addressed": ["AC-027"],
+      "out_of_scope": [
+        "Do not change any source, test or README file; mismatches are recorded as follow-up items in the evidence file only.",
+        "Do not add this check to the automated test suite.",
+        "Do not paste credentials or tokens into the evidence file."
+      ],
+      "existing_context": [
+        "Both CLIs are expected to be installed and authenticated locally; codex-cli 0.162.1 was installed when the spec was written.",
+        "The built CLI is run with `pnpm build` then `node dist/cli.js`.",
+        "The code skill must be discoverable by both agents in the scratch workspace (copy or link it from the project's skills)."
+      ],
+      "constraints": [
+        "Use a fresh scratch directory (for example under the session scratchpad), never the afk repository, as the workspace.",
+        "If a CLI is not installed or not authenticated, stop and tell the user instead of faking evidence."
+      ],
+      "implementation_guidelines": [
+        "Record `codex --version` and `claude --version`.",
+        "In the scratch dir run `echo 'Reply with the single word hello' | codex exec --approve-for-me -o out.txt - > stdout.txt` and compare stdout.txt with out.txt ignoring surrounding whitespace; record both contents and the result.",
+        "Run `node dist/cli.js --agent codex --cwd <scratch> \"Do the next task\"` (a prompt naming no spec or task list); record stderr and exit code. Expected: a '[afk] Run blocked: …' line and exit code 1.",
+        "Repeat with `--agent claude`.",
+        "Write specs/agent-adapters.smoke-check.md containing versions, commands, observed output and exit codes, a pass/fail line per check, and a 'Follow-up fixes' list (empty if none)."
+      ],
+      "acceptance_criteria": [
+        "specs/agent-adapters.smoke-check.md exists and lists the Codex and Claude Code CLI versions.",
+        "It shows the Codex stdout vs -o file comparison with a pass/fail result.",
+        "It shows, for each of --agent codex and --agent claude, the '[afk] Run blocked: …' line and exit code 1, or records the mismatch under 'Follow-up fixes'.",
+        "No file other than specs/agent-adapters.smoke-check.md is added or modified."
+      ],
+      "assumptions": [
+        "The evidence file location is not specified by the spec; a sibling file in specs/ was chosen.",
+        "Running the real agents requires network access and the user's authenticated sessions."
+      ],
+      "dependencies": ["TASK-009", "TASK-011", "TASK-016", "TASK-017"]
+    },
+    {
+      "id": "TASK-018",
+      "title": "Add a distinct agent-reported-error execution error",
+      "objective": "Stop reporting agent-reported failures as exited-unsuccessfully with a fabricated exit code 0 by adding an 'agent-reported-error' ExecutionError kind.",
+      "status": "completed",
+      "story_addressed": "US-003",
+      "requirements_addressed": ["AC-008", "AC-011", "AC-012"],
+      "out_of_scope": [
+        "Do not change what the adapters return (FinalMessageResult stays as is).",
+        "Do not handle non-zero exit codes differently yet (TASK-019).",
+        "Do not change the retry policy."
+      ],
+      "existing_context": [
+        "src/session.ts maps a 'failed' FinalMessageResult to { kind: 'exited-unsuccessfully', exitCode: 0, signal: null, reason }.",
+        "src/outcomes.ts defines ExecutionError; TASK-004 added the optional `reason` to the exited-unsuccessfully variant.",
+        "src/report.ts describeExecutionError renders `agent exited unsuccessfully: ${reason}` when reason is defined.",
+        "Review finding: a consumer reading exitCode/signal without checking reason would print 'exit code 0' or 'due to signal null'."
+      ],
+      "constraints": [
+        "The user-visible wording for a Claude is_error result must stay 'agent exited unsuccessfully: <reason>' so existing harness scenarios and the README stay correct.",
+        "Remove the optional `reason` from the exited-unsuccessfully variant once nothing else uses it."
+      ],
+      "implementation_guidelines": [
+        "In src/outcomes.ts add the ExecutionError variant { kind: 'agent-reported-error'; reason: string } and remove `reason?` from 'exited-unsuccessfully'.",
+        "In src/session.ts map a 'failed' extraction result to { kind: 'agent-reported-error', reason }.",
+        "In src/report.ts describeExecutionError: agent-reported-error -> `agent exited unsuccessfully: ${reason}`; simplify the exited-unsuccessfully branches back to exit code / signal only.",
+        "Check every switch over ExecutionError.kind (grep for 'exited-unsuccessfully' in src/ and test/) so the exhaustiveness check still compiles.",
+        "Update test/session.test.ts, test/report.test.ts and any other test that built the old shape."
+      ],
+      "acceptance_criteria": [
+        "A stub adapter returning { kind: 'failed', reason: 'r' } yields execution-error { kind: 'agent-reported-error', reason: 'r' } with no exitCode or signal property.",
+        "describeExecutionError({kind:'agent-reported-error',reason:'r'}) === 'agent exited unsuccessfully: r'.",
+        "describeExecutionError for exited-unsuccessfully with exit code 3 or a signal is unchanged.",
+        "The harness scenario for Claude error_max_turns (TASK-017) still passes unchanged.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "An agent-reported error is retried exactly like any other execution error.",
+        "This task supersedes the TASK-004 criterion that describeExecutionError handles exited-unsuccessfully with a reason, and the TASK-005 criterion that a 'failed' result yields exited-unsuccessfully with exitCode 0; update those tests rather than keeping both.",
+        "A new error kind is a deliberate deviation from AC-008's 'existing execution error kinds'; user-visible wording is unchanged."
+      ],
+      "dependencies": ["TASK-004", "TASK-005", "TASK-017"]
+    },
+    {
+      "id": "TASK-019",
+      "title": "Report the agent's own error reason on a non-zero exit",
+      "objective": "When the agent process exits non-zero, still pass stdout to the adapter so a structured failure reason (for example Claude's is_error with a subtype) is reported instead of only 'exit code N'.",
+      "status": "completed",
+      "story_addressed": "US-003",
+      "requirements_addressed": ["AC-008", "AC-012"],
+      "out_of_scope": [
+        "Do not change timeout, interruption or kill behavior.",
+        "Do not run the real claude CLI in this task; confirming its non-zero exit behavior is a prerequisite done before this task is scheduled.",
+        "Do not change what the Codex adapter returns: it never returns 'failed', so Codex results are unaffected."
+      ],
+      "existing_context": [
+        "src/session.ts returns exited-unsuccessfully as soon as the exit code is non-zero and never calls extractFinalMessage.",
+        "The 'Claude reported an error (subtype: …)' reason in src/agents/claude.ts is therefore only reachable on exit code 0.",
+        "Review finding: `claude -p --output-format json` is believed to print a JSON object with is_error: true on stdout and exit 1 on failures such as error_max_turns; this was not confirmed.",
+        "TASK-018 adds the agent-reported-error kind."
+      ],
+      "constraints": [
+        "The stderr tail must still be attached to the result.",
+        "Only a 'failed' extraction result may change the reported error on a non-zero exit; 'message', 'missing' and 'invalid' keep the exit-code error, because stdout of a crashed process is not trustworthy."
+      ],
+      "implementation_guidelines": [
+        "Prerequisite (not part of this task): before scheduling it, run a failing real invocation such as `claude -p --output-format json --max-turns 1 \"use a tool to list files\"` in a scratch directory and record the exit code and stdout under 'Follow-up fixes' in specs/agent-adapters.smoke-check.md. If Claude exits 0 on is_error, drop this task.",
+        "In src/session.ts, only when the process closed with a non-null non-zero exit code (code !== null; never on a signal, timeout or abort) call request.agent.extractFinalMessage(stdout); if it returns { kind: 'failed', reason } return agent-reported-error with that reason, otherwise return exited-unsuccessfully with the exit code as today.",
+        "The fake-claude.mjs fixture already writes the is_error JSON and then exits with step.exitCode, so no fixture change is needed: add scenarios using { claudeError: 'error_max_turns', exitCode: 1 }, { stdout: 'not json', exitCode: 1 } and { finalMessage: <valid protocol text>, exitCode: 1 } to the Claude-only describe in test/harness.test.ts, plus a unit test in test/session.test.ts.",
+        "Update the AC-008 table in specs/agent-adapters.spec.md so the is_error row applies to a non-zero exit as well as exit 0, and note that this is a deliberate deviation from 'non-zero exit means exited unsuccessfully with exit code'."
+      ],
+      "acceptance_criteria": [
+        "A Claude fixture step with claudeError 'error_max_turns' and exitCode 1 produces a stderr line containing 'agent exited unsuccessfully' and 'error_max_turns', not 'exit code 1'.",
+        "A Claude fixture step exiting 1 with non-JSON stdout, or with a valid protocol result, still produces 'agent exited unsuccessfully with exit code 1'.",
+        "A process killed by a signal never has its stdout passed to the adapter (asserted with a stub adapter that fails the test if called).",
+        "A Codex fixture step exiting 3 is unchanged: 'agent exited unsuccessfully with exit code 3'.",
+        "The stderr tail is still printed after the Execution error line in both Claude cases.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "A process killed by a signal never has its stdout interpreted."
+      ],
+      "dependencies": ["TASK-018"]
+    },
+    {
+      "id": "TASK-020",
+      "title": "Bound captured agent output and handle stream errors",
+      "objective": "Cap memory used for agent stdout and the stderr tail's partial line, and attach error handlers to the piped child streams.",
+      "status": "completed",
+      "story_addressed": "US-004",
+      "requirements_addressed": ["AC-016"],
+      "out_of_scope": [
+        "Do not change the 20-line limit or the stderr tail printing format.",
+        "Do not write output to files."
+      ],
+      "existing_context": [
+        "src/session.ts accumulates stdout with `stdout += chunk` and has no 'error' listeners on child.stdout or child.stderr.",
+        "src/stderr-tail.ts createStderrTail keeps the last 20 lines but its carried partial line grows without bound (for example a spinner using '\\r' and no newline)."
+      ],
+      "constraints": [
+        "Keep both limits as named constants.",
+        "Truncation must be deterministic and must never throw."
+      ],
+      "implementation_guidelines": [
+        "In src/stderr-tail.ts cap every line at MAX_LINE_LENGTH = 8192 characters, keeping the most recent characters: apply the cap both to the carried partial line and to each completed line before it is stored (a single chunk holding one huge line plus '\\n' must also be capped). Strip a trailing '\\r' first, then cap. Add the cases to the existing tail tests.",
+        "In src/session.ts cap captured stdout at MAX_STDOUT_CHARS = 10 * 1024 * 1024 (string length, since the stream uses setEncoding('utf8')). When the cap is exceeded stop appending and remember that it overflowed, but keep the 'data' listener attached so the stream keeps draining and the child is never blocked by backpressure. After a zero exit with overflow return invalid-response with reason 'agent output exceeded the size limit' without calling the adapter; with a non-zero exit keep the exit-code error (and, if TASK-019 is in place, do not pass truncated stdout to the adapter).",
+        "Attach 'error' listeners to child.stdout and child.stderr that ignore the error (the child's 'close'/'error' events already settle the result); keep stdin's existing handling. Put the listener wiring in a small exported helper (for example attachStreamErrorGuards(child)) so it can be unit tested without mocking child_process.",
+        "Add tests in test/stderr-tail.test.ts and test/session.test.ts; make the stdout limit injectable for the session test (an optional SessionRequest field) so the test does not need 10 MiB of output."
+      ],
+      "acceptance_criteria": [
+        "createStderrTail: pushing 20000 characters without a newline and then '\\n' yields a single line of at most 8192 characters equal to the last 8192 characters pushed; pushing the same 20000 characters plus '\\n' in one chunk gives the same result.",
+        "A session whose fixture writes more than the stdout cap and exits 0 returns execution-error invalid-response with reason 'agent output exceeded the size limit', and the fixture process still exits normally (stdout kept draining).",
+        "A session over the cap that exits non-zero returns the exit-code error, not the size-limit error.",
+        "A session whose output is under the cap is unaffected.",
+        "The stream error guard helper attaches an 'error' listener to both streams: a unit test emitting 'error' on a PassThrough stream with the guard attached does not throw.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "10 MiB is far above any legitimate final message, so exceeding it indicates a runaway agent.",
+        "This is hardening beyond the spec; AC-016 is cited only for the stderr tail bound.",
+        "invalid-response is reused for the overflow case, so the message reads 'agent final response is invalid: agent output exceeded the size limit'."
+      ],
+      "dependencies": ["TASK-006", "TASK-019"]
+    },
+    {
+      "id": "TASK-021",
+      "title": "Resolve the selected agent adapter once in parseOptions",
+      "objective": "Remove the duplicate getAgent lookup and the non-null assertion in src/options.ts.",
+      "status": "completed",
+      "story_addressed": "US-001",
+      "requirements_addressed": ["AC-001", "AC-002", "AC-003", "AC-022"],
+      "out_of_scope": [
+        "Do not change the error message or option semantics."
+      ],
+      "existing_context": [
+        "src/options.ts validates --agent with getAgent(values.agent) and later calls getAgent(values.agent ?? DEFAULT_AGENT)! again.",
+        "src/run-loop.ts slices stderrTail to 20 lines although createStderrTail already enforces the limit; the slice is intentional defense and must stay (TASK-007 AC)."
+      ],
+      "constraints": [
+        "Behavior must not change; all TASK-008 acceptance criteria still hold."
+      ],
+      "implementation_guidelines": [
+        "Compute `const agent = getAgent(values.agent ?? DEFAULT_AGENT)` once; if agent is undefined return the existing 'must be one of' error; reuse `agent` when building options without `!`.",
+        "Keep help detection first so '--agent bogus --help' still returns help."
+      ],
+      "acceptance_criteria": [
+        "src/options.ts calls getAgent exactly once and contains no non-null assertion on it.",
+        "All existing test/options.test.ts cases for --agent pass unchanged.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "DEFAULT_AGENT is always a registered name (asserted by the registry test)."
+      ],
+      "dependencies": ["TASK-008"]
+    }
+  ]
+}

@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -148,15 +147,13 @@ describe('built afk CLI launch', () => {
     expect(result.calls[0].argv.some(arg => arg.includes('model_reasoning_effort'))).toBe(false);
   });
 
-  it('leaves the workspace empty and removes temporary final-response files', async () => {
+  it('leaves the workspace empty and uses no final-response file', async () => {
     const result = await run({ args: ['Prompt'], steps: [complete] });
 
     expect(result.exitCode).toBe(0);
     expect(await readdir(result.workspace)).toEqual([]);
     const argv = result.calls[0].argv;
-    const outputFile = argv[argv.indexOf('--output-last-message') + 1];
-    expect(outputFile).toBeTruthy();
-    expect(existsSync(path.dirname(outputFile))).toBe(false);
+    expect(argv).not.toContain('--output-last-message');
   });
 
   it('starts a fresh session budget when launched again in the same workspace', async () => {

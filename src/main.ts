@@ -13,7 +13,7 @@ export interface MainIo {
   stderr: { write(chunk: string): unknown };
   processCwd: string;
   abortSignal?: AbortSignal;
-  codex?: { executable: string; leadingArgs: string[] };
+  launcher?: { executable: string; leadingArgs: string[] };
 }
 
 export async function main(argv: string[], io: MainIo): Promise<number> {
@@ -51,8 +51,9 @@ export async function main(argv: string[], io: MainIo): Promise<number> {
       abortSignal: io.abortSignal,
     },
     () => runSession({
-      executable: io.codex?.executable ?? 'codex',
-      leadingArgs: io.codex?.leadingArgs ?? [],
+      agent: options.agent,
+      executable: io.launcher?.executable,
+      leadingArgs: io.launcher?.leadingArgs,
       cwd: options.cwd,
       prompt: sessionPrompt,
       model: options.model,

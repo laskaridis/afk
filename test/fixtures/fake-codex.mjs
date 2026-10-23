@@ -2,8 +2,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const stateDir = process.env.FAKE_CODEX_STATE_DIR;
-if (!stateDir) throw new Error('FAKE_CODEX_STATE_DIR is required');
+const stateDir = process.env.FAKE_AGENT_STATE_DIR ?? process.env.FAKE_CODEX_STATE_DIR;
+if (!stateDir) throw new Error('FAKE_AGENT_STATE_DIR is required');
 
 const steps = JSON.parse(await readFile(path.join(stateDir, 'steps.json'), 'utf8'));
 let count = 0;
@@ -25,11 +25,10 @@ await writeFile(path.join(stateDir, `call-${callNumber}.json`), JSON.stringify({
 }));
 
 if (typeof step.stdout === 'string') process.stdout.write(step.stdout);
+if (typeof step.stderr === 'string') process.stderr.write(step.stderr);
 if (step.ignoreSigint === true) process.on('SIGINT', () => {});
 if (typeof step.sleepMs === 'number') await new Promise(resolve => setTimeout(resolve, step.sleepMs));
 if (typeof step.finalMessage === 'string') {
-  const index = argv.indexOf('--output-last-message');
-  if (index < 0 || !argv[index + 1]) throw new Error('Missing output path');
-  await writeFile(argv[index + 1], step.finalMessage);
+  process.stdout.write(step.finalMessage + '\n');
 }
 process.exit(step.exitCode ?? 0);

@@ -1,11 +1,14 @@
 import { statSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
+import { DEFAULT_AGENT, agentNames, getAgent } from './agents/index.js';
+import type { AgentAdapter } from './agents/index.js';
 
 export interface CliOptions {
   positionals: string[];
   promptFile?: string;
   cwd: string;
+  agent: AgentAdapter;
   model?: string;
   reasoningEffort?: string;
   maxIterations: number;
@@ -28,6 +31,7 @@ export function parseOptions(argv: string[], processCwd: string): ParseOptionsRe
       options: {
         'prompt-file': { type: 'string' },
         cwd: { type: 'string' },
+        agent: { type: 'string' },
         model: { type: 'string' },
         'reasoning-effort': { type: 'string' },
         'max-iterations': { type: 'string' },
@@ -58,6 +62,10 @@ export function parseOptions(argv: string[], processCwd: string): ParseOptionsRe
   if (values['reasoning-effort'] !== undefined && values['reasoning-effort'].trim() === '') {
     return { ok: false, message: '--reasoning-effort must not be empty' };
   }
+  const agent = getAgent(values.agent ?? DEFAULT_AGENT);
+  if (agent === undefined) {
+    return { ok: false, message: `--agent must be one of: ${agentNames().join(', ')}, got "${values.agent}"` };
+  }
 
   const cwdValue = values.cwd;
   const cwd = path.resolve(processCwd, cwdValue ?? '.');
@@ -75,6 +83,7 @@ export function parseOptions(argv: string[], processCwd: string): ParseOptionsRe
       positionals,
       promptFile: values['prompt-file'],
       cwd,
+      agent,
       model: values.model,
       reasoningEffort: values['reasoning-effort'],
       maxIterations: iterationValue === undefined ? 10 : Number(iterationValue),

@@ -1,0 +1,508 @@
+## Project discovery
+- Source modules use `.js` import suffixes under NodeNext; tests import their TypeScript sources through the same suffix.
+- `main()` passes the parsed adapter to every session; the test-only executable override is `io.launcher`.
+- Shared agent fixture tests use `FAKE_AGENT_STATE_DIR`; fake Codex also accepts the older `FAKE_CODEX_STATE_DIR` for existing tests.
+---
+
+## 2026-10-21 17:32:18 EEST
+- Task id: TASK-001
+- What was implemented:
+  - Added the AgentAdapter and FinalMessageResult contracts, including the result kinds needed by future adapters.
+  - Added a pure Codex adapter that preserves the existing argument order and override handling while reading the final message from stdout.
+- Files changed:
+  - src/agents/types.ts
+  - src/agents/codex.ts
+  - test/agents/codex.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/agents/codex.test.ts` failed because the adapter module did not exist.
+  - GREEN: the same command passed all 6 tests after adding the adapter.
+  - The tests verify the default argument list, unchanged model and effort overrides, explicit empty overrides, absence of `--output-last-message`, missing responses for empty and whitespace stdout, and unchanged non-empty message text.
+  - `pnpm typecheck` passed.
+  - `pnpm test` passed: 16 files and 189 tests.
+  - `git diff --check` passed.
+- Learnings for future iterations:
+  - The existing Codex arguments builder remains in use until TASK-005; its ordering and undefined checks are the baseline for the adapter.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:34 EEST
+- Task id: TASK-002
+- What was implemented:
+  - Added a pure Claude adapter with print-mode JSON arguments, auto permission mode, and unchanged optional model and effort values.
+  - Classified stdout as message, missing, invalid JSON response, or Claude-reported failure; included non-empty error subtype in the failure reason.
+- Files changed:
+  - src/agents/claude.ts
+  - test/agents/claude.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/agents/claude.test.ts` failed because the adapter module did not exist.
+  - GREEN: the same command passed all 8 tests after implementation and correction of a malformed JSON test literal.
+  - Tests cover default arguments, both overrides (including explicit empty values), no full-access mode, blank stdout, invalid JSON and non-object JSON, Claude errors with and without subtype, missing results, and unchanged valid result text.
+  - `pnpm typecheck` passed; `pnpm test` passed with 17 files and 197 tests; `git diff --check` passed.
+  - All TASK-002 acceptance criteria were checked against the adapter tests and these commands; the adapter has no process or file access and does not register itself.
+- Learnings for future iterations:
+  - Claude result parsing lives entirely in the adapter; the shared runner will map its `failed` result to an execution error in TASK-005.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:36:05 EEST
+- Task id: TASK-003
+- What was implemented:
+  - Added the built-in agent registry with Codex and Claude Code, a Codex default, ordered supported names, safe name lookup, and type re-exports.
+- Files changed:
+  - src/agents/index.ts
+  - test/agents/registry.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/agents/registry.test.ts` failed because `src/agents/index.ts` did not exist.
+  - GREEN: the same command passed all 5 tests after adding the registry.
+  - The tests verify the supported-name order, adapter identity, registered default, rejection of unsupported and inherited names, matching keys and adapter names, and type re-exports.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 202 tests; `git diff --check` passed.
+  - Each TASK-003 acceptance criterion is covered by the registry tests or these commands.
+- Learnings for future iterations:
+  - Options and help can use agentNames(); main can use getAgent() and DEFAULT_AGENT.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:38:58 EEST
+- Task id: TASK-004
+- What was implemented:
+  - Replaced Codex-specific status and execution-error wording with agent-neutral wording.
+  - Added an optional agent-reported reason to exited-unsuccessfully errors and gave it precedence in reports.
+- Files changed:
+  - src/outcomes.ts
+  - src/report.ts
+  - test/report.test.ts
+  - test/run-loop.test.ts
+  - test/main.test.ts
+  - test/e2e-stop.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/report.test.ts test/run-loop.test.ts` failed on 14 assertions for old wording and missing reason precedence.
+  - GREEN: the same command passed 44 tests after implementation.
+  - Acceptance criteria: report tests assert the exact iteration, launch, exit-code, signal, reported-reason, missing-response, invalid-response, and timeout text; they also assert reported-reason propagation through execution and final status lines.
+  - Updated main, run-loop, and end-to-end assertions for every old status string; `rg` found no `Codex` in src/report.ts, src/run-loop.ts, or src/outcomes.ts and no old status assertions in test/.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 204 tests; `git diff --check` passed.
+  - First full test run had an intermittent CLI fixture startup timeout; the CLI test passed alone and the full suite passed on rerun. Read-only implementation review found no blockers.
+- Learnings for future iterations:
+  - Agent-reported execution reasons are carried by the optional `reason` field, which the shared reporter uses before exit-code and signal fallback.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:43:10 EEST
+- Task id: TASK-005
+- What was implemented:
+  - Refactored the session runner to launch through an AgentAdapter, capture stdout, classify extracted messages, and eliminate temporary response files.
+  - Kept Codex as the temporary main wiring until agent selection is added; changed the fake Codex fixture to emit its final message on stdout.
+  - Removed the superseded Codex argument builder and its tests.
+- Files changed:
+  - src/session.ts
+  - src/main.ts
+  - src/codex-args.ts (deleted)
+  - test/codex-args.test.ts (deleted)
+  - test/fixtures/fake-codex.mjs
+  - test/session.test.ts
+  - test/e2e-launch.test.ts
+  - test/e2e-stop.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: focused session tests failed for stdout response extraction, adapter-reported failure, and absence of the output-file flag before implementation.
+  - GREEN: focused session tests passed after implementation; tests cover valid and missing responses, nonzero exits, adapter-reported invalid and failed results, timeout, interruption, stdout capture, and no temporary session directory.
+  - End-to-end tests verify agent stdout stays hidden and fixture argv has no --output-last-message flag.
+  - `pnpm typecheck` passed; `pnpm test` passed with 17 files and 202 tests; `git diff --check` passed.
+  - Checked session.ts has no filesystem, OS, or path imports and the obsolete builder file is gone. Read-only review found no completion blockers.
+- Learnings for future iterations:
+  - The shared runner now passes reasoningEffort to adapter.buildArgs as effort and calls extraction only after exit code 0.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:46:40 EEST
+- Task id: TASK-006
+- What was implemented:
+  - Added a bounded stderr tail collector that handles chunk boundaries, interior blank lines, carriage returns, and partial final lines.
+  - Piped agent stderr in the shared session runner and attached its last 20 lines to every execution-error result. Valid responses, timeouts, and interruptions carry no stderr tail.
+  - Extended the fake Codex fixture to emit stderr for session tests.
+- Files changed:
+  - src/stderr-tail.ts
+  - src/session.ts
+  - src/outcomes.ts
+  - test/stderr-tail.test.ts
+  - test/session.test.ts
+  - test/fixtures/fake-codex.mjs
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/stderr-tail.test.ts test/session.test.ts` failed because the helper was absent and execution errors lacked stderrTail.
+  - GREEN: the focused command passed 26 tests after implementation; `pnpm typecheck` passed.
+  - Collector tests assert 25 lines retain l6 through l25, split chunks form one line, blank and CRLF handling, and a trailing partial line counts toward the limit.
+  - Session tests assert stderr 'boom\\n' on exit 3 yields ['boom'], no stderr yields [], and launch, missing, invalid, and adapter-reported failures always carry an array.
+  - Session tests assert valid responses, timeouts, and interruptions have no stderrTail property; a captured write check verifies fixture stderr does not reach the parent stderr.
+  - `pnpm test` passed: 18 files and 208 tests. Its first run hit the previously observed intermittent CLI fixture startup timeout; the rerun passed. `git diff --check` passed. Read-only implementation review found no blockers.
+- Learnings for future iterations:
+  - The stderr tail is attached only to SessionResult execution errors. TASK-007 can print that field without changing process capture.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:48:55 EEST
+- Task id: TASK-007
+- What was implemented:
+  - The run loop logs up to the last 20 captured stderr lines immediately after each execution-error line, including errors that trigger a retry.
+- Files changed:
+  - src/run-loop.ts
+  - test/run-loop.test.ts
+  - test/main.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/run-loop.test.ts` failed on missing stderr lines in three assertions.
+  - GREEN: the same command passed all 23 tests after the run-loop change.
+  - Run-loop tests verify ordered lines, absent and empty tails, a 30-line input capped at 20, and distinct tails for consecutive errors.
+  - Main integration test verifies both tails precede the final status, with no tail repeated after it.
+  - Existing response, timeout and interruption branches remain separate from the sole stderr logging branch; session tests verify those results do not carry stderr tails.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 212 tests; `git diff --check` passed.
+- Learnings for future iterations:
+  - Main writes a final status only after runLoop returns, so logging each error tail inside runLoop places it before the final status.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:51:31 EEST
+- Task id: TASK-008
+- What was implemented:
+  - Added `--agent` parsing, registry-backed validation, and the Codex default to `parseOptions`.
+  - Preserved help precedence over invalid agent values.
+- Files changed:
+  - src/options.ts
+  - test/options.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/options.test.ts` failed in 9 cases before parser implementation.
+  - GREEN: the same command passed all 36 tests after implementation.
+  - Tests assert the default Codex adapter, explicit Codex and Claude adapter identity, supported-name errors for unsupported, case-mismatched, whitespace-only and empty values, absent-value rejection, and help precedence.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 220 tests on rerun; `git diff --check` passed.
+  - The first full test run hit the previously observed intermittent end-to-end fixture startup timeout; the rerun passed without a code change.
+- Learnings for future iterations:
+  - `CliOptions.agent` is now an adapter object; TASK-009 can pass it directly to `runSession`.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:53:32 EEST
+- Task id: TASK-009
+- What was implemented:
+  - Wired the parsed agent adapter through main to every session, including retries, and renamed the test launcher override to `io.launcher`.
+  - Parameterized the CLI test shim name by agent, defaulting to Codex.
+  - Added main tests for default Codex arguments, Claude arguments on both attempts of an execution retry, unchanged model and effort overrides, and invalid-agent rejection before launch.
+- Files changed:
+  - src/main.ts
+  - test/main.test.ts
+  - test/helpers/run-cli.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/main.test.ts` failed because the renamed launcher was not wired and Claude sessions did not launch through the fixture.
+  - GREEN: the same command passed all 13 tests after wiring `options.agent` and `io.launcher`.
+  - Main tests establish each task acceptance criterion: exact leading arguments for default Codex and selected Claude, two Claude attempts with the same arguments, unchanged model and effort flags, and exit code 2 with no fixture calls for an unsupported agent.
+  - `rg -n 'io\.codex|codex\?:' src test` found no matches; `pnpm typecheck` passed; `pnpm test` passed with 18 files and 223 tests; `git diff --check` passed.
+- Learnings for future iterations:
+  - Until the Claude fixture is added, main tests can use the generic launcher override to inspect Claude arguments, but cannot assert a successful Claude protocol result.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-21 17:55:52 EEST
+- Task id: TASK-010
+- What was implemented:
+  - Made CLI help agent-neutral and added registry-backed supported names and default to `--agent` documentation.
+  - Documented that model and reasoning effort values pass through unchanged.
+- Files changed:
+  - src/help.ts
+  - test/help.test.ts
+  - test/main.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/help.test.ts test/main.test.ts` failed on three help assertions for missing `--agent` and old Codex wording.
+  - GREEN: the same focused command passed 27 tests after the help change.
+  - Help tests confirm both supported names and the default, agent-neutral text outside those names, and unchanged pass-through wording for both settings.
+  - Main integration test confirms `--agent bogus --help` exits 0, prints help, emits no stderr, and starts no session.
+  - `pnpm typecheck` passed; `pnpm test` passed with 18 files and 227 tests; `git diff --check` passed.
+  - Exit codes and other options stayed in place; task acceptance criteria were checked against the focused and full tests.
+- Learnings for future iterations:
+  - Help text now imports `agentNames()` and `DEFAULT_AGENT` directly from the registry; adding a registry entry updates the help list automatically.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-23 09:53:16 EEST
+- Task id: TASK-011
+- What was implemented:
+  - Added a fake Claude executable that emits JSON result objects and shares the Codex fixture step format.
+  - Added a shared fixture helper and registry-driven harness tests for repeat, complete, blocked, fail, invalid protocol text, and empty output.
+- Files changed:
+  - test/fixtures/fake-codex.mjs
+  - test/fixtures/fake-claude.mjs
+  - test/helpers/agent-fixtures.ts
+  - test/harness.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/harness.test.ts` failed because the shared fixture helper was missing.
+  - GREEN: the same command passed 11 tests after adding the fixtures and helper.
+  - Each of five scenarios asserts exact stderr lines, exit code, call count, hidden stdout, and parity with a Codex run using the same steps for each registered agent.
+  - `describe.each(agentNames())` covers all registered names; a separate assertion requires the fixture table to have exactly those names. The helper launches `process.execPath` with the fixture path, so the harness tests do not invoke real agent binaries.
+  - `pnpm typecheck` passed; `pnpm test` passed with 19 files and 238 tests; `git diff --check` passed. Read-only review found no TASK-011 blocker.
+- Learnings for future iterations:
+  - The shared helper accepts extra CLI arguments and an abort signal, which TASK-016 can use for timeout and interruption scenarios.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-23 09:56:12 EEST
+- Task id: TASK-016
+- What was implemented:
+  - Added registry-driven harness scenarios for an unsuccessful exit followed by a successful retry, two consecutive execution errors, the iteration limit, session timeout, and interruption.
+  - Compared each scenario's stderr lines and exit code against the same Codex fixture run; checked that timeout and interruption launch only one session.
+- Files changed:
+  - test/harness.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - `pnpm exec vitest run test/harness.test.ts` passed: 21 tests, including each new scenario for both registered agents.
+  - New scenarios assert exact status lines and exit codes for both agents, one fixture call after timeout and interruption, and identical lines and exit codes to Codex for each scenario.
+  - `pnpm typecheck` passed. `pnpm test` passed on rerun: 19 files and 248 tests. The first full run had a five-second timeout in an existing e2e fixture test, matching the intermittent startup delay observed in prior iterations.
+  - `git diff --check` passed before bookkeeping changes.
+- Learnings for future iterations:
+  - `runAgentScenario` accepts extra CLI arguments and an abort signal; fixture `sleepMs` allows a session to be interrupted before it reports a final response.
+- Scope deviations:
+  - None. No production files were modified; the pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-23 09:58:22 EEST
+- Task id: TASK-017
+- What was implemented:
+  - Added shared harness scenarios for execution-error stderr ordering, the last 20 stderr lines, and stderr suppression on success, timeout, and interruption.
+  - Added Claude-only harness scenarios for an agent-reported error subtype and malformed JSON output.
+- Files changed:
+  - test/harness.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - Shared scenarios run through `describe.each(agentNames())` for Codex and Claude; each compares its exact stderr lines and exit code with the same Codex scenario. The error cases verify `boom` directly after the execution-error line and `l6` through `l25` from 25 lines. The success, timeout, and interruption cases verify no `noise` line.
+  - Claude-only scenarios verify the `error_max_turns` subtype and the `agent output could not be parsed` reason; they are outside the shared agent loop.
+  - `pnpm exec vitest run test/harness.test.ts` passed: 33 tests. `pnpm typecheck` passed. `pnpm test` passed: 19 files and 260 tests. `git diff --check` passed.
+  - Read-only review found no concrete scope or acceptance-criteria issues.
+- Learnings for future iterations:
+  - Shared fixture scenarios can compare full stderr lines across agents while keeping Claude-only result classification separate.
+- Scope deviations:
+  - None. No production files were modified; the pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-23 10:00 EEST
+- Task id: TASK-012
+- What was implemented:
+  - Added registry-driven tests for a two-session run that leaves the workspace and temporary directory empty, hides agent output, and emits exactly the expected harness status lines.
+- Files changed:
+  - test/no-side-effects.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - The focused test passed for both registered agents: `pnpm exec vitest run test/no-side-effects.test.ts` (2 tests).
+  - Each run used a fresh workspace and TMPDIR with fixture state outside both; the first session slept 1500 ms and both wrote `AGENT-NOISE` to stderr. Assertions checked both directories were empty, stdout was empty, stderr was exactly two iteration lines and the final status line, and neither agent noise nor protocol text appeared in output.
+  - `pnpm typecheck` passed; `pnpm test` passed with 20 files and 262 tests; `git diff --check` passed.
+  - The test was green when first added because this task validates behavior already implemented; no production change or refactor was needed.
+- Learnings for future iterations:
+  - Fixture state needs its own directory when asserting that the selected workspace and TMPDIR remain empty.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-23 10:03:34 EEST
+- Task id: TASK-013
+- What was implemented:
+  - Rewrote README usage, prerequisites, options, output, retry, interruption, and permission descriptions for the selected coding agent.
+  - Added Supported agents sections with Codex and Claude Code prerequisites, launch command shapes, prompt and result handling, and honored settings.
+- Files changed:
+  - README.md
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - Checked all TASK-013 acceptance criteria directly against the README: both agent sections and command shapes, registry names and Codex default, quiet output, last 20 stderr lines after execution errors, removed old phrases, and no Codex branding outside Supported agents.
+  - `pnpm typecheck` passed.
+  - `pnpm test` passed: 20 files and 262 tests.
+  - `git diff --check` passed before the final wording adjustment; final diff checked again before commit.
+- Learnings for future iterations:
+  - README documents the implemented permission modes under Supported agents; the general unattended section can refer to those without naming either agent.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-23 10:05:17 EEST
+- Task id: TASK-014
+- What was implemented:
+  - Updated the package description to name both supported coding agents without presenting Codex as the only choice.
+  - Added a package metadata assertion for the exact new description and against the old one.
+- Files changed:
+  - package.json
+  - test/package.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/package.test.ts -t 'describes both supported coding agents'` failed because the old description was present.
+  - GREEN: the same focused command passed after changing the description.
+  - `pnpm test` passed: 20 files and 263 tests.
+  - Checked that package.json changed only its description, pnpm-lock.yaml was untouched, and `git diff --check` passed.
+  - The exact description assertion establishes AC-026; the diff establishes the task's file-scope criterion.
+- Learnings for future iterations:
+  - Package metadata has a dedicated test in test/package.test.ts, including an npm pack smoke test.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-23 10:09 EEST
+- Task id: TASK-015
+- What was implemented:
+  - Ran the manual AC-027 smoke checks against the installed Codex and Claude Code CLIs in a scratch workspace and recorded the observed results.
+- Files changed:
+  - specs/agent-adapters.smoke-check.md
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - `pnpm build` passed. `codex --version` reported `codex-cli 0.162.1`; `claude --version` reported `2.1.307 (Claude Code)`.
+  - `codex exec --approve-for-me -o out.txt -` exited 0; piped stdout and `out.txt` both contained `hello` followed by a newline.
+  - `afk --agent codex` and `afk --agent claude` each emitted one iteration line and a `Run blocked` line, exited 1, and produced no stdout.
+  - `pnpm typecheck` passed; `pnpm test` passed with 20 files and 263 tests.
+  - Checked that only the smoke-check evidence and authorized task bookkeeping were changed; the pre-existing untracked prompt.txt was untouched.
+- Learnings for future iterations:
+  - A fresh scratch directory must be initialized as a Git repository for the Codex CLI smoke check.
+- Scope deviations:
+  - None. The task list and progress log are authorized bookkeeping files required by the code skill.
+- Follow up needed: None.
+---
+## 2026-10-23 10:58:11 EEST
+- Task id: TASK-018
+- What was implemented:
+  - Added a distinct agent-reported-error execution error and mapped adapter-reported failures to it without a fabricated exit code or signal.
+  - Kept the existing user-visible error wording and removed the optional reason from exited-unsuccessfully.
+- Files changed:
+  - src/outcomes.ts
+  - src/session.ts
+  - src/report.ts
+  - test/session.test.ts
+  - test/report.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: focused report and session tests failed in three cases before the implementation.
+  - GREEN: `pnpm exec vitest run test/report.test.ts test/session.test.ts test/harness.test.ts` passed, including the unchanged Claude error_max_turns scenario (81 tests).
+  - `pnpm typecheck` passed; `pnpm test` passed (20 files, 263 tests).
+  - Session test asserts the error has only kind and reason; report tests cover an exit code, a signal, and unchanged agent-reported wording.
+  - Searched src/ and test/ for exited-unsuccessfully and agent-reported-error to check all uses.
+- Learnings for future iterations:
+  - Non-zero process exits are still classified before adapter extraction; TASK-019 addresses structured failures on non-zero exits.
+- Scope deviations:
+  - The task list already contained uncommitted review-task additions, so its status update stays in the working tree and is not part of this task's commit. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: TASK-019 remains pending.
+---
+## 2026-10-23 11:02:30 EEST
+- Task id: TASK-019
+- What was implemented:
+  - Confirmed that real Claude Code 2.1.309 exits 1 with JSON `is_error: true` and subtype `error_max_turns` for a max-turns failure.
+  - On a non-zero exit code, report a structured adapter failure reason when present; preserve exit-code errors for other output and signal exits.
+  - Updated the AC-008 table to describe the deliberate non-zero exit exception.
+- Files changed:
+  - src/session.ts
+  - test/session.test.ts
+  - test/harness.test.ts
+  - specs/agent-adapters.spec.md
+  - specs/agent-adapters.smoke-check.md
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: focused `pnpm exec vitest run` showed the adapter-reported failure on exit 1 was incorrectly classified as exit code 1.
+  - GREEN: `pnpm exec vitest run test/session.test.ts test/harness.test.ts` passed (61 tests).
+  - `pnpm typecheck` passed; `pnpm test` passed (20 files, 268 tests); `git diff --check` passed.
+  - Claude fixture exit 1 with `error_max_turns` reports its subtype and stderr tail; malformed JSON and a valid protocol response on exit 1 retain the exit-code error and stderr tail.
+  - A self-signaling process with an adapter that throws if called proves signal exits skip extraction; existing Codex fixture exit 3 scenario remains passing.
+  - Independent read-only review found no code blocker; its requested spec clarification was added.
+- Learnings for future iterations:
+  - Claude Code can emit structured `is_error` JSON with a non-zero process exit. Preserve the exit-code classification for any other output.
+- Scope deviations:
+  - The task list already contained uncommitted review-task additions, so its status update stays in the working tree and is not part of this task's commit. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: TASK-020 and TASK-021 remain pending.
+---
+## 2026-10-23 11:10:11 EEST
+- Task id: TASK-020
+- What was implemented:
+  - Bounded captured stdout to 10 MiB while continuing to drain the child stream; oversized output now reports an invalid response after a zero exit and retains the exit-code error after a non-zero exit without invoking the adapter.
+  - Bounded stderr partial and completed lines to their last 8192 characters and handled carriage returns split across chunks.
+  - Attached error listeners to both piped output streams.
+- Files changed:
+  - src/session.ts
+  - src/stderr-tail.ts
+  - test/session.test.ts
+  - test/stderr-tail.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: focused tests failed for unbounded stderr, extraction after oversized stdout, and missing stream guards; a separate regression test failed for a carriage return split from its newline.
+  - GREEN: `pnpm exec vitest run test/stderr-tail.test.ts test/session.test.ts` passed (34 tests); `pnpm typecheck` passed.
+  - A 256 KiB child stdout write with a 16-character injected limit completed and returned the size-limit error on exit 0. The corresponding exit-3 case retained the exit-code error; throwing adapters proved neither overflow path extracts truncated output. Exact-limit output parsed normally. PassThrough errors on both guarded streams did not throw.
+  - `pnpm test` passed once (20 files, 273 tests) before the carriage-return fix. Two later default parallel runs hit different known 5-second fixture startup timeouts. The full suite then passed with `pnpm exec vitest run --no-file-parallelism` (20 files, 273 tests) after the final fix.
+  - Independent read-only review found the split carriage-return edge case; its regression test and fix passed focused and full verification.
+- Learnings for future iterations:
+  - The e2e fixture tests can time out under parallel load; disabling test-file parallelism gave a full passing run.
+- Scope deviations:
+  - The task list already contained uncommitted review-task additions, so its status update stays in the working tree and is not part of this task's commit. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: TASK-021 remains pending.
+---
+## 2026-10-23 11:12:11 EEST
+- Task id: TASK-021
+- What was implemented:
+  - Resolved the selected or default agent once after option validation and reused the narrowed adapter in the parsed options.
+  - Preserved the registered-name error and early help precedence.
+- Files changed:
+  - src/options.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: the source check found two `getAgent` calls and a non-null assertion in `src/options.ts` before the change.
+  - GREEN: `rg -n 'getAgent\\(' src/options.ts` found exactly one call after the change, and the non-null assertion was removed.
+  - `pnpm exec vitest run test/options.test.ts` passed all 36 existing tests, including default, explicit agents, invalid names, empty values, and help precedence.
+  - `pnpm typecheck` passed; `pnpm test` passed with 20 files and 273 tests.
+  - The unchanged error string and existing test assertions establish that option semantics remain the same.
+- Learnings for future iterations:
+  - The registry test establishes that the default agent is registered, so the single lookup can safely cover both default and explicit selections.
+- Scope deviations:
+  - None. The task list had pre-existing uncommitted review-task additions; only the current task's status is staged for this commit. The pre-existing untracked prompt.txt was untouched.
+- Follow up needed: None.
+---

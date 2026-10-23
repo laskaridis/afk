@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseOptions } from '../src/options.js';
+import { codexAdapter } from '../src/agents/codex.js';
+import { claudeAdapter } from '../src/agents/claude.js';
 
 describe('parseOptions', () => {
   it('uses the current directory and default session limit when no options are supplied', () => {
@@ -12,6 +14,7 @@ describe('parseOptions', () => {
         positionals: [],
         promptFile: undefined,
         cwd: process.cwd(),
+        agent: codexAdapter,
         model: undefined,
         reasoningEffort: undefined,
         maxIterations: 10,
@@ -32,12 +35,41 @@ describe('parseOptions', () => {
         positionals: ['Implement feature'],
         promptFile: 'feature.txt',
         cwd: process.cwd(),
+        agent: codexAdapter,
         model: 'gpt-x',
         reasoningEffort: 'high',
         maxIterations: 3,
         sessionTimeoutSeconds: 30,
       },
     });
+  });
+
+  it.each([
+    ['codex', codexAdapter],
+    ['claude', claudeAdapter],
+  ])('selects the registered %s adapter', (name, adapter) => {
+    const result = parseOptions(['--agent', name], process.cwd());
+    expect(result.ok && !result.help && result.options.agent).toBe(adapter);
+  });
+
+  it.each(['gemini', 'Claude', ' ', ''])('rejects unsupported agent %j with registered names', (name) => {
+    expect(parseOptions(['--agent', name], process.cwd())).toEqual({
+      ok: false,
+      message: `--agent must be one of: codex, claude, got "${name}"`,
+    });
+  });
+
+  it('rejects an empty --agent= value and an absent value', () => {
+    expect(parseOptions(['--agent='], process.cwd())).toEqual({
+      ok: false,
+      message: '--agent must be one of: codex, claude, got ""',
+    });
+    const result = parseOptions(['--agent'], process.cwd());
+    expect(result.ok).toBe(false);
+  });
+
+  it('lets help take precedence over an invalid agent', () => {
+    expect(parseOptions(['--agent', 'bogus', '--help'], process.cwd())).toEqual({ ok: true, help: true });
   });
 
   it('keeps a dash-leading prompt positional after --', () => {
