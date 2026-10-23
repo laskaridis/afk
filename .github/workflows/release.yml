@@ -28,6 +28,7 @@ jobs:
       - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build

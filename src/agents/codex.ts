@@ -8,7 +8,8 @@ export const codexAdapter: AgentAdapter = {
     return [
       'exec',
       '--approve-for-me',
-      '--cd', cwd,
+      '--cd',
+      cwd,
       ...(model === undefined ? [] : ['--model', model]),
       ...(effort === undefined ? [] : ['--config', `model_reasoning_effort=${JSON.stringify(effort)}`]),
       '-',

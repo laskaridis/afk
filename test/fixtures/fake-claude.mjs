@@ -20,22 +20,38 @@ if (!step) throw new Error('At least one step is required');
 let stdin = '';
 for await (const chunk of process.stdin) stdin += chunk;
 const argv = process.argv.slice(2);
-await writeFile(path.join(stateDir, `call-${callNumber}.json`), JSON.stringify({
-  argv, stdin, cwd: process.cwd(), pid: process.pid,
-}));
+await writeFile(
+  path.join(stateDir, `call-${callNumber}.json`),
+  JSON.stringify({
+    argv,
+    stdin,
+    cwd: process.cwd(),
+    pid: process.pid,
+  }),
+);
 
 if (typeof step.stdout === 'string') process.stdout.write(step.stdout);
 if (typeof step.stderr === 'string') process.stderr.write(step.stderr);
 if (step.ignoreSigint === true) process.on('SIGINT', () => {});
 if (typeof step.sleepMs === 'number') await new Promise(resolve => setTimeout(resolve, step.sleepMs));
 if (typeof step.finalMessage === 'string') {
-  process.stdout.write(JSON.stringify({
-    type: 'result', subtype: 'success', is_error: false, result: step.finalMessage,
-  }));
+  process.stdout.write(
+    JSON.stringify({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      result: step.finalMessage,
+    }),
+  );
 }
 if (typeof step.claudeError === 'string') {
-  process.stdout.write(JSON.stringify({
-    type: 'result', subtype: step.claudeError, is_error: true, result: 'error',
-  }));
+  process.stdout.write(
+    JSON.stringify({
+      type: 'result',
+      subtype: step.claudeError,
+      is_error: true,
+      result: 'error',
+    }),
+  );
 }
 process.exit(step.exitCode ?? 0);

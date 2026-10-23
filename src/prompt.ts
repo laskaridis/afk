@@ -6,9 +6,7 @@ export interface PromptStdin {
   read: () => Promise<string>;
 }
 
-export type ResolvePromptResult =
-  | { ok: true; prompt: string }
-  | { ok: false; message: string };
+export type ResolvePromptResult = { ok: true; prompt: string } | { ok: false; message: string };
 
 export async function resolvePrompt(input: {
   positionals: string[];
@@ -18,7 +16,10 @@ export async function resolvePrompt(input: {
 }): Promise<ResolvePromptResult> {
   const { positionals, promptFile, processCwd, stdin } = input;
   if (positionals.length > 1) {
-    return { ok: false, message: `expected a single prompt argument but received ${positionals.length}; quote the prompt` };
+    return {
+      ok: false,
+      message: `expected a single prompt argument but received ${positionals.length}; quote the prompt`,
+    };
   }
 
   const stdinText = stdin.isTTY ? '' : await stdin.read();
@@ -28,10 +29,16 @@ export async function resolvePrompt(input: {
   if (!stdin.isTTY && stdinText.trim() !== '') sources.push('stdin');
 
   if (sources.length > 1) {
-    return { ok: false, message: `multiple prompt sources provided (${sources.join(', ')}); use exactly one of a prompt argument, --prompt-file, or stdin` };
+    return {
+      ok: false,
+      message: `multiple prompt sources provided (${sources.join(', ')}); use exactly one of a prompt argument, --prompt-file, or stdin`,
+    };
   }
   if (sources.length === 0) {
-    return { ok: false, message: 'no prompt provided; pass a prompt argument, --prompt-file <path>, or pipe the prompt on stdin' };
+    return {
+      ok: false,
+      message: 'no prompt provided; pass a prompt argument, --prompt-file <path>, or pipe the prompt on stdin',
+    };
   }
 
   if (positionals.length === 1) {
@@ -48,9 +55,7 @@ export async function resolvePrompt(input: {
       const reason = error instanceof Error ? error.message : String(error);
       return { ok: false, message: `cannot read prompt file "${promptFile}": ${reason}` };
     }
-    return prompt.trim() === ''
-      ? { ok: false, message: `prompt file "${promptFile}" is empty` }
-      : { ok: true, prompt };
+    return prompt.trim() === '' ? { ok: false, message: `prompt file "${promptFile}" is empty` } : { ok: true, prompt };
   }
 
   return { ok: true, prompt: stdinText };

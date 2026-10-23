@@ -24,13 +24,16 @@ async function setup(steps: object[]) {
   process.env.FAKE_CODEX_STATE_DIR = stateDir;
   const lines: string[] = [];
   const out: string[] = [];
-  const invoke = (argv: string[], stdinText?: string) => main(argv, {
-    stdin: Object.assign(Readable.from(stdinText === undefined ? [] : [stdinText]), { isTTY: stdinText === undefined }),
-    stdout: { write: (chunk: string) => out.push(chunk) },
-    stderr: { write: (chunk: string) => lines.push(chunk) },
-    processCwd: stateDir,
-    launcher: { executable: process.execPath, leadingArgs: [fixture] },
-  });
+  const invoke = (argv: string[], stdinText?: string) =>
+    main(argv, {
+      stdin: Object.assign(Readable.from(stdinText === undefined ? [] : [stdinText]), {
+        isTTY: stdinText === undefined,
+      }),
+      stdout: { write: (chunk: string) => out.push(chunk) },
+      stderr: { write: (chunk: string) => lines.push(chunk) },
+      processCwd: stateDir,
+      launcher: { executable: process.execPath, leadingArgs: [fixture] },
+    });
   const calls = async () => (await readdir(stateDir)).filter(name => /^call-\d+\.json$/.test(name));
   return { stateDir, lines, out, invoke, calls };
 }
@@ -79,7 +82,7 @@ describe('main', () => {
     expect(await run.calls()).toEqual([]);
   });
 
-  it.each(['--help', '-h'])('prints help to stdout for %s without launching a session', async (flag) => {
+  it.each(['--help', '-h'])('prints help to stdout for %s without launching a session', async flag => {
     const run = await setup([{ finalMessage: '{"outcome":"complete"}' }]);
 
     const code = await run.invoke([flag, '--max-iterations', '0'], 'unused');

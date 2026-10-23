@@ -18,7 +18,16 @@ afterEach(async () => {
   await Promise.all(stateDirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
 });
 
-async function invoke(step: Record<string, unknown>, options: { timeoutSeconds?: number; terminationGraceMs?: number; abortSignal?: AbortSignal; agent?: AgentAdapter; maxStdoutChars?: number } = {}) {
+async function invoke(
+  step: Record<string, unknown>,
+  options: {
+    timeoutSeconds?: number;
+    terminationGraceMs?: number;
+    abortSignal?: AbortSignal;
+    agent?: AgentAdapter;
+    maxStdoutChars?: number;
+  } = {},
+) {
   const stateDir = await mkdtemp(path.join(os.tmpdir(), 'afk-test-'));
   stateDirs.push(stateDir);
   await writeFile(path.join(stateDir, 'steps.json'), JSON.stringify([step]));
@@ -32,7 +41,10 @@ async function invoke(step: Record<string, unknown>, options: { timeoutSeconds?:
     ...options,
   });
   const call = JSON.parse(await readFile(path.join(stateDir, 'call-1.json'), 'utf8')) as {
-    argv: string[]; stdin: string; cwd: string; pid: number;
+    argv: string[];
+    stdin: string;
+    cwd: string;
+    pid: number;
   };
   return { result, call, stateDir };
 }
@@ -42,7 +54,11 @@ describe('runSession', () => {
     ['repeat', '{"outcome":"repeat"}', { outcome: 'repeat' }],
     ['complete', '{"outcome":"complete"}', { outcome: 'complete' }],
     ['blocked', '{"outcome":"blocked","blocker_text":"Need tasks"}', { outcome: 'blocked', blockerText: 'Need tasks' }],
-    ['fail', '{"outcome":"fail","failure_summary":"Tests failed"}', { outcome: 'fail', failureSummary: 'Tests failed' }],
+    [
+      'fail',
+      '{"outcome":"fail","failure_summary":"Tests failed"}',
+      { outcome: 'fail', failureSummary: 'Tests failed' },
+    ],
   ])('returns a valid %s final response', async (_name, finalMessage, response) => {
     const { result } = await invoke({ finalMessage });
     expect(result).toEqual({ kind: 'response', response });
@@ -60,27 +76,47 @@ describe('runSession', () => {
 
   it('rejects prose around protocol JSON', async () => {
     const { result } = await invoke({ finalMessage: 'Done! {"outcome":"complete"}' });
-    expect(result).toEqual({ kind: 'execution-error', error: {
-      kind: 'invalid-response', reason: 'final response is not valid JSON',
-    }, stderrTail: [] });
+    expect(result).toEqual({
+      kind: 'execution-error',
+      error: {
+        kind: 'invalid-response',
+        reason: 'final response is not valid JSON',
+      },
+      stderrTail: [],
+    });
   });
 
   it('prioritizes an unsuccessful process exit over a valid final message', async () => {
     const { result } = await invoke({ exitCode: 3, finalMessage: '{"outcome":"complete"}' });
-    expect(result).toEqual({ kind: 'execution-error', error: {
-      kind: 'exited-unsuccessfully', exitCode: 3, signal: null,
-    }, stderrTail: [] });
+    expect(result).toEqual({
+      kind: 'execution-error',
+      error: {
+        kind: 'exited-unsuccessfully',
+        exitCode: 3,
+        signal: null,
+      },
+      stderrTail: [],
+    });
   });
 
   it('captures stderr on a failed session without writing it to the parent', async () => {
     const writes: string[] = [];
     const originalWrite = process.stderr.write;
-    process.stderr.write = ((chunk: string) => { writes.push(chunk); return true; }) as typeof process.stderr.write;
+    process.stderr.write = ((chunk: string) => {
+      writes.push(chunk);
+      return true;
+    }) as typeof process.stderr.write;
     try {
       const { result } = await invoke({ stderr: 'boom\n', exitCode: 3 });
-      expect(result).toEqual({ kind: 'execution-error', error: {
-        kind: 'exited-unsuccessfully', exitCode: 3, signal: null,
-      }, stderrTail: ['boom'] });
+      expect(result).toEqual({
+        kind: 'execution-error',
+        error: {
+          kind: 'exited-unsuccessfully',
+          exitCode: 3,
+          signal: null,
+        },
+        stderrTail: ['boom'],
+      });
       expect(writes.join('')).not.toContain('boom');
     } finally {
       process.stderr.write = originalWrite;
@@ -104,9 +140,12 @@ describe('runSession', () => {
   });
 
   it('rejects oversized stdout after draining the child and skips extraction', async () => {
-    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => {
-      throw new Error('oversized stdout must not be extracted');
-    } };
+    const agent: AgentAdapter = {
+      ...codexAdapter,
+      extractFinalMessage: () => {
+        throw new Error('oversized stdout must not be extracted');
+      },
+    };
     const result = await runSession({
       agent,
       executable: process.execPath,
@@ -115,15 +154,23 @@ describe('runSession', () => {
       prompt: 'x',
       maxStdoutChars: 16,
     });
-    expect(result).toEqual({ kind: 'execution-error', error: {
-      kind: 'invalid-response', reason: 'agent output exceeded the size limit',
-    }, stderrTail: [] });
+    expect(result).toEqual({
+      kind: 'execution-error',
+      error: {
+        kind: 'invalid-response',
+        reason: 'agent output exceeded the size limit',
+      },
+      stderrTail: [],
+    });
   });
 
   it('keeps the exit-code error when oversized stdout exits unsuccessfully', async () => {
-    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => {
-      throw new Error('truncated stdout must not be extracted');
-    } };
+    const agent: AgentAdapter = {
+      ...codexAdapter,
+      extractFinalMessage: () => {
+        throw new Error('truncated stdout must not be extracted');
+      },
+    };
     const result = await runSession({
       agent,
       executable: process.execPath,
@@ -132,9 +179,15 @@ describe('runSession', () => {
       prompt: 'x',
       maxStdoutChars: 16,
     });
-    expect(result).toEqual({ kind: 'execution-error', error: {
-      kind: 'exited-unsuccessfully', exitCode: 3, signal: null,
-    }, stderrTail: [] });
+    expect(result).toEqual({
+      kind: 'execution-error',
+      error: {
+        kind: 'exited-unsuccessfully',
+        exitCode: 3,
+        signal: null,
+      },
+      stderrTail: [],
+    });
   });
 
   it('guards both piped output streams against error events', () => {
@@ -148,23 +201,36 @@ describe('runSession', () => {
   it('maps adapter-reported failure to an execution error', async () => {
     const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => ({ kind: 'failed', reason: 'r' }) };
     const { result } = await invoke({ stdout: 'anything' }, { agent });
-    expect(result).toEqual({ kind: 'execution-error', error: {
-      kind: 'agent-reported-error', reason: 'r',
-    }, stderrTail: [] });
+    expect(result).toEqual({
+      kind: 'execution-error',
+      error: {
+        kind: 'agent-reported-error',
+        reason: 'r',
+      },
+      stderrTail: [],
+    });
   });
 
   it('uses an adapter-reported failure on a non-zero exit', async () => {
     const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => ({ kind: 'failed', reason: 'r' }) };
     const { result } = await invoke({ stdout: 'anything', exitCode: 1, stderr: 'detail\n' }, { agent });
-    expect(result).toEqual({ kind: 'execution-error', error: {
-      kind: 'agent-reported-error', reason: 'r',
-    }, stderrTail: ['detail'] });
+    expect(result).toEqual({
+      kind: 'execution-error',
+      error: {
+        kind: 'agent-reported-error',
+        reason: 'r',
+      },
+      stderrTail: ['detail'],
+    });
   });
 
   it('does not extract stdout after a signal exit', async () => {
-    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => {
-      throw new Error('stdout must not be extracted after a signal');
-    } };
+    const agent: AgentAdapter = {
+      ...codexAdapter,
+      extractFinalMessage: () => {
+        throw new Error('stdout must not be extracted after a signal');
+      },
+    };
     const result = await runSession({
       agent,
       executable: process.execPath,
@@ -172,17 +238,31 @@ describe('runSession', () => {
       cwd: os.tmpdir(),
       prompt: 'x',
     });
-    expect(result).toEqual({ kind: 'execution-error', error: {
-      kind: 'exited-unsuccessfully', exitCode: null, signal: 'SIGTERM',
-    }, stderrTail: [] });
+    expect(result).toEqual({
+      kind: 'execution-error',
+      error: {
+        kind: 'exited-unsuccessfully',
+        exitCode: null,
+        signal: 'SIGTERM',
+      },
+      stderrTail: [],
+    });
   });
 
   it('maps adapter-invalid output to an invalid response', async () => {
-    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => ({ kind: 'invalid', reason: 'bad JSON' }) };
+    const agent: AgentAdapter = {
+      ...codexAdapter,
+      extractFinalMessage: () => ({ kind: 'invalid', reason: 'bad JSON' }),
+    };
     const { result } = await invoke({ stdout: 'anything' }, { agent });
-    expect(result).toEqual({ kind: 'execution-error', error: {
-      kind: 'invalid-response', reason: 'bad JSON',
-    }, stderrTail: [] });
+    expect(result).toEqual({
+      kind: 'execution-error',
+      error: {
+        kind: 'invalid-response',
+        reason: 'bad JSON',
+      },
+      stderrTail: [],
+    });
   });
 
   it('creates no temporary session directory', async () => {
@@ -207,7 +287,13 @@ describe('runSession', () => {
     const previousTmpdir = process.env.TMPDIR;
     process.env.TMPDIR = isolatedTmp;
     try {
-      const result = await runSession({ agent: codexAdapter, executable: '/nonexistent/codex-missing', leadingArgs: [], cwd: isolatedTmp, prompt: 'x' });
+      const result = await runSession({
+        agent: codexAdapter,
+        executable: '/nonexistent/codex-missing',
+        leadingArgs: [],
+        cwd: isolatedTmp,
+        prompt: 'x',
+      });
       expect(result).toMatchObject({ kind: 'execution-error', error: { kind: 'launch-failed' }, stderrTail: [] });
       if (result.kind === 'execution-error' && result.error.kind === 'launch-failed') {
         expect(result.error.message.length).toBeGreaterThan(0);
@@ -248,10 +334,7 @@ describe('runSession', () => {
   });
 
   it('returns the final response when the session finishes before its deadline', async () => {
-    const { result } = await invoke(
-      { sleepMs: 100, finalMessage: '{"outcome":"complete"}' },
-      { timeoutSeconds: 5 },
-    );
+    const { result } = await invoke({ sleepMs: 100, finalMessage: '{"outcome":"complete"}' }, { timeoutSeconds: 5 });
     expect(result).toEqual({ kind: 'response', response: { outcome: 'complete' } });
   });
 
@@ -268,7 +351,10 @@ describe('runSession', () => {
     const timer = setTimeout(() => controller.abort(), 300);
     const started = Date.now();
     try {
-      const { result, call } = await invoke({ stderr: 'interruption detail\n', sleepMs: 10000 }, { abortSignal: controller.signal });
+      const { result, call } = await invoke(
+        { stderr: 'interruption detail\n', sleepMs: 10000 },
+        { abortSignal: controller.signal },
+      );
       expect(result).toEqual({ kind: 'interrupted' });
       expect(Date.now() - started).toBeLessThan(3000);
       expect(() => process.kill(call.pid, 0)).toThrow();

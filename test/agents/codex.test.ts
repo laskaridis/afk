@@ -5,22 +5,34 @@ describe('codexAdapter', () => {
   it('starts a fresh Codex session with automatic approval review and stdin prompt', () => {
     expect(codexAdapter.name).toBe('codex');
     expect(codexAdapter.executable).toBe('codex');
-    expect(codexAdapter.buildArgs({ cwd: '/w' })).toEqual([
-      'exec', '--approve-for-me', '--cd', '/w', '-',
-    ]);
+    expect(codexAdapter.buildArgs({ cwd: '/w' })).toEqual(['exec', '--approve-for-me', '--cd', '/w', '-']);
   });
 
   it('passes model and reasoning effort overrides unchanged in the existing order', () => {
     expect(codexAdapter.buildArgs({ cwd: '/w', model: 'm', effort: 'high' })).toEqual([
-      'exec', '--approve-for-me', '--cd', '/w', '--model', 'm',
-      '--config', 'model_reasoning_effort="high"', '-',
+      'exec',
+      '--approve-for-me',
+      '--cd',
+      '/w',
+      '--model',
+      'm',
+      '--config',
+      'model_reasoning_effort="high"',
+      '-',
     ]);
   });
 
   it('includes an explicitly supplied empty override', () => {
     expect(codexAdapter.buildArgs({ cwd: '/w', model: '', effort: '' })).toEqual([
-      'exec', '--approve-for-me', '--cd', '/w', '--model', '',
-      '--config', 'model_reasoning_effort=""', '-',
+      'exec',
+      '--approve-for-me',
+      '--cd',
+      '/w',
+      '--model',
+      '',
+      '--config',
+      'model_reasoning_effort=""',
+      '-',
     ]);
   });
 

@@ -29,7 +29,14 @@ type ProcessResult =
   | { kind: 'launch-failed'; message: string }
   | { kind: 'timed-out' }
   | { kind: 'interrupted' }
-  | { kind: 'closed'; code: number | null; signal: string | null; stdout: string; stdoutOverflowed: boolean; stderrTail: string[] };
+  | {
+      kind: 'closed';
+      code: number | null;
+      signal: string | null;
+      stdout: string;
+      stdoutOverflowed: boolean;
+      stderrTail: string[];
+    };
 
 function terminate(child: ChildProcess, graceMs: number, isClosed: () => boolean): NodeJS.Timeout {
   child.kill('SIGINT');
@@ -40,11 +47,14 @@ function terminate(child: ChildProcess, graceMs: number, isClosed: () => boolean
 
 export async function runSession(request: SessionRequest): Promise<SessionResult> {
   if (request.abortSignal?.aborted) return { kind: 'interrupted' };
-  const args = [...(request.leadingArgs ?? []), ...request.agent.buildArgs({
-    cwd: request.cwd,
-    model: request.model,
-    effort: request.reasoningEffort,
-  })];
+  const args = [
+    ...(request.leadingArgs ?? []),
+    ...request.agent.buildArgs({
+      cwd: request.cwd,
+      model: request.model,
+      effort: request.reasoningEffort,
+    }),
+  ];
 
   const processResult = await new Promise<ProcessResult>(resolve => {
     let child: ChildProcessWithoutNullStreams;
@@ -75,7 +85,9 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
       }
     });
     child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk: string) => { stderrTail.push(chunk); });
+    child.stderr.on('data', (chunk: string) => {
+      stderrTail.push(chunk);
+    });
     let timedOut = false;
     let interrupted = false;
     let timeoutTimer: NodeJS.Timeout | undefined;
@@ -98,7 +110,13 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
       request.abortSignal?.removeEventListener('abort', onAbort);
       if (timeoutTimer) clearTimeout(timeoutTimer);
       if (killTimer) clearTimeout(killTimer);
-      resolve(interrupted ? { kind: 'interrupted' } : timedOut ? { kind: 'timed-out' } : { kind: 'closed', code, signal, stdout, stdoutOverflowed, stderrTail: stderrTail.lines() });
+      resolve(
+        interrupted
+          ? { kind: 'interrupted' }
+          : timedOut
+            ? { kind: 'timed-out' }
+            : { kind: 'closed', code, signal, stdout, stdoutOverflowed, stderrTail: stderrTail.lines() },
+      );
     });
     if (request.abortSignal?.aborted) onAbort();
     if (request.timeoutSeconds !== undefined) {
@@ -126,7 +144,8 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
   if (processResult.kind === 'timed-out') return { kind: 'timed-out' };
   if (processResult.kind === 'interrupted') return { kind: 'interrupted' };
   const executionError = (error: ExecutionError): SessionResult => ({
-    kind: 'execution-error', error,
+    kind: 'execution-error',
+    error,
     stderrTail: processResult.kind === 'closed' ? processResult.stderrTail : [],
   });
   if (processResult.kind === 'launch-failed') {
@@ -140,20 +159,26 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
       }
     }
     return executionError({
-      kind: 'exited-unsuccessfully', exitCode: processResult.code, signal: processResult.signal,
+      kind: 'exited-unsuccessfully',
+      exitCode: processResult.code,
+      signal: processResult.signal,
     });
   }
 
-  if (processResult.stdoutOverflowed) return executionError({
-    kind: 'invalid-response', reason: 'agent output exceeded the size limit',
-  });
+  if (processResult.stdoutOverflowed)
+    return executionError({
+      kind: 'invalid-response',
+      reason: 'agent output exceeded the size limit',
+    });
 
   const extracted = request.agent.extractFinalMessage(processResult.stdout);
   if (extracted.kind === 'missing') return executionError({ kind: 'missing-response' });
   if (extracted.kind === 'invalid') return executionError({ kind: 'invalid-response', reason: extracted.reason });
-  if (extracted.kind === 'failed') return executionError({
-    kind: 'agent-reported-error', reason: extracted.reason,
-  });
+  if (extracted.kind === 'failed')
+    return executionError({
+      kind: 'agent-reported-error',
+      reason: extracted.reason,
+    });
 
   const parsed = parseProtocolResponse(extracted.text);
   return parsed.ok

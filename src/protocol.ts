@@ -4,9 +4,7 @@ export type ProtocolResponse =
   | { outcome: 'blocked'; blockerText: string }
   | { outcome: 'fail'; failureSummary: string };
 
-export type ParseResponseResult =
-  | { ok: true; response: ProtocolResponse }
-  | { ok: false; reason: string };
+export type ParseResponseResult = { ok: true; response: ProtocolResponse } | { ok: false; reason: string };
 
 export function parseProtocolResponse(text: string): ParseResponseResult {
   let value: unknown;

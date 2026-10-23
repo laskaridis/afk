@@ -34,26 +34,40 @@ async function startCli(steps: object[], args: string[]) {
 
   const child = spawn(process.execPath, [cli, ...args], {
     cwd: root,
-    env: { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`, FAKE_CODEX_STATE_DIR: stateDir },
+    env: {
+      ...process.env,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+      FAKE_CODEX_STATE_DIR: stateDir,
+    },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   children.push(child);
   let stderr = '';
-  child.stderr?.on('data', chunk => { stderr += chunk.toString(); });
+  child.stderr?.on('data', chunk => {
+    stderr += chunk.toString();
+  });
   child.stdout?.resume();
   child.stdin?.end();
   const closed = new Promise<number | null>((resolve, reject) => {
     child.once('error', reject);
     child.once('close', code => resolve(code));
   });
-  return { child, stateDir, closed, get stderr() { return stderr; } };
+  return {
+    child,
+    stateDir,
+    closed,
+    get stderr() {
+      return stderr;
+    },
+  };
 }
 
 async function waitForCall(stateDir: string) {
   const callFile = path.join(stateDir, 'call-1.json');
   for (let attempt = 0; attempt < 200; attempt++) {
-    try { return JSON.parse(await readFile(callFile, 'utf8')) as { pid: number }; }
-    catch (error) {
+    try {
+      return JSON.parse(await readFile(callFile, 'utf8')) as { pid: number };
+    } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
     await new Promise(resolve => setTimeout(resolve, 20));

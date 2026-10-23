@@ -25,7 +25,7 @@ afterEach(async () => {
 });
 
 describe('built afk CLI launch', () => {
-  it.each(['--help', '-h'])('prints help on stdout and exits 0 for %s without launching Codex', async (flag) => {
+  it.each(['--help', '-h'])('prints help on stdout and exits 0 for %s without launching Codex', async flag => {
     const result = await run({ args: [flag], steps: [complete] });
 
     expect(result.exitCode).toBe(0);

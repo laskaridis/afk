@@ -10,7 +10,13 @@ function scripted(results: SessionResult[], config: RunLoopConfig = { maxIterati
     if (!result) throw new Error('unexpected session');
     return result;
   };
-  return { logs, get calls() { return calls; }, run: () => runLoop(config, runner, line => logs.push(line)) };
+  return {
+    logs,
+    get calls() {
+      return calls;
+    },
+    run: () => runLoop(config, runner, line => logs.push(line)),
+  };
 }
 
 const repeat: SessionResult = { kind: 'response', response: { outcome: 'repeat' } };
@@ -92,11 +98,15 @@ describe('runLoop', () => {
     const controller = new AbortController();
     let calls = 0;
     const logs: string[] = [];
-    const result = await runLoop({ maxIterations: 3, abortSignal: controller.signal }, async () => {
-      calls++;
-      controller.abort();
-      return repeat;
-    }, line => logs.push(line));
+    const result = await runLoop(
+      { maxIterations: 3, abortSignal: controller.signal },
+      async () => {
+        calls++;
+        controller.abort();
+        return repeat;
+      },
+      line => logs.push(line),
+    );
     expect(result).toEqual({ kind: 'interrupted' });
     expect(calls).toBe(1);
   });
@@ -130,9 +140,9 @@ describe('runLoop', () => {
 
   it('prints no extra lines when an execution error has an empty or absent stderr tail', async () => {
     for (const tail of [undefined, []]) {
-      const script = scripted([
-        { kind: 'execution-error', error: { kind: 'missing-response' }, stderrTail: tail },
-      ], { maxIterations: 1 });
+      const script = scripted([{ kind: 'execution-error', error: { kind: 'missing-response' }, stderrTail: tail }], {
+        maxIterations: 1,
+      });
       await script.run();
       expect(script.logs).toEqual([
         '[afk] Iteration 1/1: starting agent session',
@@ -143,9 +153,9 @@ describe('runLoop', () => {
 
   it('prints at most the last 20 stderr lines', async () => {
     const tail = Array.from({ length: 30 }, (_, index) => `l${index + 1}`);
-    const script = scripted([
-      { kind: 'execution-error', error: { kind: 'missing-response' }, stderrTail: tail },
-    ], { maxIterations: 1 });
+    const script = scripted([{ kind: 'execution-error', error: { kind: 'missing-response' }, stderrTail: tail }], {
+      maxIterations: 1,
+    });
     await script.run();
     expect(script.logs).toEqual([
       '[afk] Iteration 1/1: starting agent session',
@@ -176,10 +186,10 @@ describe('runLoop', () => {
 
   it('resets the execution-error allowance after a valid response', async () => {
     const error = { kind: 'missing-response' } as const;
-    const script = scripted([
-      { kind: 'execution-error', error }, repeat,
-      { kind: 'execution-error', error }, complete,
-    ], { maxIterations: 4 });
+    const script = scripted(
+      [{ kind: 'execution-error', error }, repeat, { kind: 'execution-error', error }, complete],
+      { maxIterations: 4 },
+    );
     expect(await script.run()).toEqual({ kind: 'complete' });
     expect(script.calls).toBe(4);
     expect(script.logs).toContain('[afk] Iteration 3/4: starting agent session');
@@ -211,9 +221,10 @@ describe('runLoop', () => {
 
   it('does not retry after a timeout on the retry session', async () => {
     const error = { kind: 'missing-response' } as const;
-    const script = scripted([
-      { kind: 'execution-error', error }, { kind: 'timed-out' }, complete,
-    ], { maxIterations: 3, sessionTimeoutSeconds: 7 });
+    const script = scripted([{ kind: 'execution-error', error }, { kind: 'timed-out' }, complete], {
+      maxIterations: 3,
+      sessionTimeoutSeconds: 7,
+    });
     expect(await script.run()).toEqual({ kind: 'timed-out', timeoutSeconds: 7 });
     expect(script.calls).toBe(2);
   });
@@ -222,13 +233,17 @@ describe('runLoop', () => {
     let active = 0;
     let peak = 0;
     let calls = 0;
-    const result = await runLoop({ maxIterations: 2 }, async () => {
-      active++;
-      peak = Math.max(peak, active);
-      await new Promise(resolve => setTimeout(resolve, 5));
-      active--;
-      return ++calls === 1 ? repeat : complete;
-    }, () => {});
+    const result = await runLoop(
+      { maxIterations: 2 },
+      async () => {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise(resolve => setTimeout(resolve, 5));
+        active--;
+        return ++calls === 1 ? repeat : complete;
+      },
+      () => {},
+    );
     expect(result).toEqual({ kind: 'complete' });
     expect(calls).toBe(2);
     expect(peak).toBe(1);

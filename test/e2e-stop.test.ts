@@ -70,7 +70,9 @@ describe('built afk CLI stop outcomes', () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.calls).toHaveLength(2);
-    expect(result.stderr).toContain('[afk] Run stopped after a repeated execution error: agent exited unsuccessfully with exit code 3');
+    expect(result.stderr).toContain(
+      '[afk] Run stopped after a repeated execution error: agent exited unsuccessfully with exit code 3',
+    );
   });
 
   it('stops after two invalid final responses', async () => {
@@ -78,7 +80,9 @@ describe('built afk CLI stop outcomes', () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.calls).toHaveLength(2);
-    expect(result.stderr).toContain('[afk] Run stopped after a repeated execution error: agent final response is invalid');
+    expect(result.stderr).toContain(
+      '[afk] Run stopped after a repeated execution error: agent final response is invalid',
+    );
   });
 
   it('stops after two missing final responses', async () => {

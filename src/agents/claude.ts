@@ -8,7 +8,11 @@ export const claudeAdapter: AgentAdapter = {
 
   buildArgs({ model, effort }) {
     return [
-      '-p', '--output-format', 'json', '--permission-mode', 'auto',
+      '-p',
+      '--output-format',
+      'json',
+      '--permission-mode',
+      'auto',
       ...(model === undefined ? [] : ['--model', model]),
       ...(effort === undefined ? [] : ['--effort', effort]),
     ];
@@ -32,15 +36,14 @@ export const claudeAdapter: AgentAdapter = {
       const subtype = response.subtype;
       return {
         kind: 'failed',
-        reason: typeof subtype === 'string' && subtype.trim() !== ''
-          ? `Claude reported an error (subtype: ${subtype})`
-          : 'Claude reported an error',
+        reason:
+          typeof subtype === 'string' && subtype.trim() !== ''
+            ? `Claude reported an error (subtype: ${subtype})`
+            : 'Claude reported an error',
       };
     }
 
     const result = response.result;
-    return typeof result === 'string' && result.trim() !== ''
-      ? { kind: 'message', text: result }
-      : { kind: 'missing' };
+    return typeof result === 'string' && result.trim() !== '' ? { kind: 'message', text: result } : { kind: 'missing' };
   },
 };

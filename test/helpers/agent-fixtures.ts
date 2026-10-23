@@ -31,8 +31,16 @@ export async function runAgentScenario(
     const stdout: string[] = [];
     const exitCode = await main(['--agent', agentName, ...extraArgs, 'Prompt'], {
       stdin: Object.assign(Readable.from([]), { isTTY: true }),
-      stdout: { write: chunk => { stdout.push(chunk); } },
-      stderr: { write: chunk => { stderr.push(chunk); } },
+      stdout: {
+        write: chunk => {
+          stdout.push(chunk);
+        },
+      },
+      stderr: {
+        write: chunk => {
+          stderr.push(chunk);
+        },
+      },
       processCwd: workspace,
       abortSignal: opts.abortSignal,
       launcher: { executable: process.execPath, leadingArgs: [fixture] },
@@ -40,8 +48,9 @@ export async function runAgentScenario(
     const names = (await readdir(stateDir))
       .filter(name => /^call-\d+\.json$/.test(name))
       .sort((a, b) => Number(a.match(/\d+/)?.[0]) - Number(b.match(/\d+/)?.[0]));
-    const calls = await Promise.all(names.map(async name =>
-      JSON.parse(await readFile(path.join(stateDir, name), 'utf8')) as CliCall));
+    const calls = await Promise.all(
+      names.map(async name => JSON.parse(await readFile(path.join(stateDir, name), 'utf8')) as CliCall),
+    );
     return {
       exitCode,
       stderrLines: stderr.join('').trimEnd().split('\n'),

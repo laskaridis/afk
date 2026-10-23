@@ -7,7 +7,7 @@ import { readStream, resolvePrompt, type PromptStdin } from '../src/prompt.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => {
-  await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  await Promise.all(temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true })));
 });
 
 function stdin(text: string, isTTY = false): PromptStdin {
@@ -53,21 +53,41 @@ describe('resolvePrompt', () => {
   });
 
   it('rejects a positional and non-empty stdin as multiple sources', async () => {
-    const result = await resolvePrompt({ positionals: ['build it'], processCwd: process.cwd(), stdin: stdin('from stdin') });
+    const result = await resolvePrompt({
+      positionals: ['build it'],
+      processCwd: process.cwd(),
+      stdin: stdin('from stdin'),
+    });
 
-    expect(result).toEqual({ ok: false, message: 'multiple prompt sources provided (prompt argument, stdin); use exactly one of a prompt argument, --prompt-file, or stdin' });
+    expect(result).toEqual({
+      ok: false,
+      message:
+        'multiple prompt sources provided (prompt argument, stdin); use exactly one of a prompt argument, --prompt-file, or stdin',
+    });
   });
 
   it('rejects a positional and prompt file as multiple sources', async () => {
-    const result = await resolvePrompt({ positionals: ['build it'], promptFile: 'prompt.txt', processCwd: process.cwd(), stdin: stdin('') });
+    const result = await resolvePrompt({
+      positionals: ['build it'],
+      promptFile: 'prompt.txt',
+      processCwd: process.cwd(),
+      stdin: stdin(''),
+    });
 
-    expect(result).toEqual({ ok: false, message: 'multiple prompt sources provided (prompt argument, --prompt-file); use exactly one of a prompt argument, --prompt-file, or stdin' });
+    expect(result).toEqual({
+      ok: false,
+      message:
+        'multiple prompt sources provided (prompt argument, --prompt-file); use exactly one of a prompt argument, --prompt-file, or stdin',
+    });
   });
 
-  it.each([true, false])('rejects missing input with isTTY=%s', async (isTTY) => {
+  it.each([true, false])('rejects missing input with isTTY=%s', async isTTY => {
     const result = await resolvePrompt({ positionals: [], processCwd: process.cwd(), stdin: stdin('  \n', isTTY) });
 
-    expect(result).toEqual({ ok: false, message: 'no prompt provided; pass a prompt argument, --prompt-file <path>, or pipe the prompt on stdin' });
+    expect(result).toEqual({
+      ok: false,
+      message: 'no prompt provided; pass a prompt argument, --prompt-file <path>, or pipe the prompt on stdin',
+    });
   });
 
   it('rejects an empty positional', async () => {
@@ -98,9 +118,16 @@ describe('resolvePrompt', () => {
   it('rejects two positional arguments before reading stdin', async () => {
     const read = vi.fn(async () => 'from stdin');
 
-    const result = await resolvePrompt({ positionals: ['one', 'two'], processCwd: process.cwd(), stdin: { isTTY: false, read } });
+    const result = await resolvePrompt({
+      positionals: ['one', 'two'],
+      processCwd: process.cwd(),
+      stdin: { isTTY: false, read },
+    });
 
-    expect(result).toEqual({ ok: false, message: 'expected a single prompt argument but received 2; quote the prompt' });
+    expect(result).toEqual({
+      ok: false,
+      message: 'expected a single prompt argument but received 2; quote the prompt',
+    });
     expect(read).not.toHaveBeenCalled();
   });
 });

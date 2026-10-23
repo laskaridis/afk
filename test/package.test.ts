@@ -9,7 +9,9 @@ const projectDir = fileURLToPath(new URL('..', import.meta.url));
 
 it('describes both supported coding agents', async () => {
   const packageJson = JSON.parse(await readFile(path.join(projectDir, 'package.json'), 'utf8'));
-  expect(packageJson.description).toBe('Run a coding agent (Codex, Claude Code) unattended, one task per fresh session');
+  expect(packageJson.description).toBe(
+    'Run a coding agent (Codex, Claude Code) unattended, one task per fresh session',
+  );
   expect(packageJson.description).not.toBe('Run a Codex coding agent unattended, one task per fresh session');
 });
 
@@ -31,9 +33,13 @@ it('builds on install and runs the packed executable through npm exec', async ()
     expect(contents).toContain('package.json');
     expect(contents.some(file => /^(src|test|specs)\//.test(file))).toBe(false);
 
-    const result = spawnSync('npm', [
-      'exec', '--yes', `--package=${path.join(root, packed.filename)}`, '--', 'afk',
-    ], { cwd: root, input: '', encoding: 'utf8', timeout: 90000, env });
+    const result = spawnSync('npm', ['exec', '--yes', `--package=${path.join(root, packed.filename)}`, '--', 'afk'], {
+      cwd: root,
+      input: '',
+      encoding: 'utf8',
+      timeout: 90000,
+      env,
+    });
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('afk: input error:');

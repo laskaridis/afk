@@ -53,7 +53,10 @@ export function parseOptions(argv: string[], processCwd: string): ParseOptionsRe
 
   const timeoutValue = values['session-timeout'];
   if (timeoutValue !== undefined && !isPositiveSafeInteger(timeoutValue)) {
-    return { ok: false, message: `--session-timeout must be a positive integer number of seconds, got "${timeoutValue}"` };
+    return {
+      ok: false,
+      message: `--session-timeout must be a positive integer number of seconds, got "${timeoutValue}"`,
+    };
   }
 
   if (values.model !== undefined && values.model.trim() === '') {

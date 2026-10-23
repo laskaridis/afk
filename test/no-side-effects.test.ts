@@ -18,10 +18,13 @@ describe.each(agentNames())('%s quiet runs', agentName => {
 
     try {
       await Promise.all([mkdir(tempDir), mkdir(workspace), mkdir(stateDir)]);
-      await writeFile(path.join(stateDir, 'steps.json'), JSON.stringify([
-        { sleepMs: 1500, stderr: 'AGENT-NOISE\n', finalMessage: '{"outcome":"repeat"}' },
-        { stderr: 'AGENT-NOISE\n', finalMessage: '{"outcome":"complete"}' },
-      ]));
+      await writeFile(
+        path.join(stateDir, 'steps.json'),
+        JSON.stringify([
+          { sleepMs: 1500, stderr: 'AGENT-NOISE\n', finalMessage: '{"outcome":"repeat"}' },
+          { stderr: 'AGENT-NOISE\n', finalMessage: '{"outcome":"complete"}' },
+        ]),
+      );
       process.env.TMPDIR = tempDir;
       process.env.FAKE_AGENT_STATE_DIR = stateDir;
 
@@ -29,8 +32,16 @@ describe.each(agentNames())('%s quiet runs', agentName => {
       const stdout: string[] = [];
       const exitCode = await main(['--agent', agentName, 'Prompt'], {
         stdin: Object.assign(Readable.from([]), { isTTY: true }),
-        stdout: { write: chunk => { stdout.push(chunk); } },
-        stderr: { write: chunk => { stderr.push(chunk); } },
+        stdout: {
+          write: chunk => {
+            stdout.push(chunk);
+          },
+        },
+        stderr: {
+          write: chunk => {
+            stderr.push(chunk);
+          },
+        },
         processCwd: workspace,
         launcher: { executable: process.execPath, leadingArgs: [AGENT_FIXTURES[agentName]] },
       });

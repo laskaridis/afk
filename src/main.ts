@@ -50,18 +50,21 @@ export async function main(argv: string[], io: MainIo): Promise<number> {
       sessionTimeoutSeconds: options.sessionTimeoutSeconds,
       abortSignal: io.abortSignal,
     },
-    () => runSession({
-      agent: options.agent,
-      executable: io.launcher?.executable,
-      leadingArgs: io.launcher?.leadingArgs,
-      cwd: options.cwd,
-      prompt: sessionPrompt,
-      model: options.model,
-      reasoningEffort: options.reasoningEffort,
-      timeoutSeconds: options.sessionTimeoutSeconds,
-      abortSignal: io.abortSignal,
-    }),
-    line => { io.stderr.write(line + '\n'); },
+    () =>
+      runSession({
+        agent: options.agent,
+        executable: io.launcher?.executable,
+        leadingArgs: io.launcher?.leadingArgs,
+        cwd: options.cwd,
+        prompt: sessionPrompt,
+        model: options.model,
+        reasoningEffort: options.reasoningEffort,
+        timeoutSeconds: options.sessionTimeoutSeconds,
+        abortSignal: io.abortSignal,
+      }),
+    line => {
+      io.stderr.write(line + '\n');
+    },
   );
   io.stderr.write(formatFinalStatus(outcome) + '\n');
   return exitCodeFor(outcome);

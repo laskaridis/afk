@@ -24,10 +24,22 @@ describe('parseOptions', () => {
   });
 
   it('passes supported options and positionals through with validated values', () => {
-    const result = parseOptions([
-      '--prompt-file', 'feature.txt', '--model', 'gpt-x', '--reasoning-effort', 'high',
-      '--max-iterations', '3', '--session-timeout', '30', 'Implement feature',
-    ], process.cwd());
+    const result = parseOptions(
+      [
+        '--prompt-file',
+        'feature.txt',
+        '--model',
+        'gpt-x',
+        '--reasoning-effort',
+        'high',
+        '--max-iterations',
+        '3',
+        '--session-timeout',
+        '30',
+        'Implement feature',
+      ],
+      process.cwd(),
+    );
 
     expect(result).toEqual({
       ok: true,
@@ -52,7 +64,7 @@ describe('parseOptions', () => {
     expect(result.ok && !result.help && result.options.agent).toBe(adapter);
   });
 
-  it.each(['gemini', 'Claude', ' ', ''])('rejects unsupported agent %j with registered names', (name) => {
+  it.each(['gemini', 'Claude', ' ', ''])('rejects unsupported agent %j with registered names', name => {
     expect(parseOptions(['--agent', name], process.cwd())).toEqual({
       ok: false,
       message: `--agent must be one of: codex, claude, got "${name}"`,
@@ -87,20 +99,20 @@ describe('parseOptions', () => {
     }
   });
 
-  it.each(['--unknown-flag', '--model'])('rejects unsupported or incomplete option %s', (arg) => {
+  it.each(['--unknown-flag', '--model'])('rejects unsupported or incomplete option %s', arg => {
     const result = parseOptions([arg], process.cwd());
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.message.length).toBeGreaterThan(0);
   });
 
-  it.each(['0', '-1', '1.5', 'abc', '', '9007199254740992'])('rejects invalid iteration limit %j', (value) => {
+  it.each(['0', '-1', '1.5', 'abc', '', '9007199254740992'])('rejects invalid iteration limit %j', value => {
     expect(parseOptions(['--max-iterations', value], process.cwd())).toEqual({
       ok: false,
       message: `--max-iterations must be a positive integer, got "${value}"`,
     });
   });
 
-  it.each(['0', '-1', '1.5', 'abc', '', '9007199254740992'])('rejects invalid timeout %j', (value) => {
+  it.each(['0', '-1', '1.5', 'abc', '', '9007199254740992'])('rejects invalid timeout %j', value => {
     expect(parseOptions(['--session-timeout', value], process.cwd())).toEqual({
       ok: false,
       message: `--session-timeout must be a positive integer number of seconds, got "${value}"`,
@@ -132,7 +144,7 @@ describe('parseOptions', () => {
     }
   });
 
-  it.each(['--help', '-h'])('returns a help result for %s', (flag) => {
+  it.each(['--help', '-h'])('returns a help result for %s', flag => {
     expect(parseOptions([flag], process.cwd())).toEqual({ ok: true, help: true });
   });
 
@@ -152,7 +164,8 @@ describe('parseOptions', () => {
   });
 
   it('prefers help over validation of other options and prompt positionals', () => {
-    expect(parseOptions(['--max-iterations', '0', '--cwd', '/nonexistent-afk-dir', '--help', 'Prompt'], process.cwd()))
-      .toEqual({ ok: true, help: true });
+    expect(
+      parseOptions(['--max-iterations', '0', '--cwd', '/nonexistent-afk-dir', '--help', 'Prompt'], process.cwd()),
+    ).toEqual({ ok: true, help: true });
   });
 });

@@ -11,7 +11,10 @@ let built = false;
 
 export function buildOnce(): void {
   if (built) return;
-  execFileSync(path.join(projectDir, 'node_modules/.bin/tsc'), ['-p', 'tsconfig.json'], { cwd: projectDir, stdio: 'pipe' });
+  execFileSync(path.join(projectDir, 'node_modules/.bin/tsc'), ['-p', 'tsconfig.json'], {
+    cwd: projectDir,
+    stdio: 'pipe',
+  });
   built = true;
 }
 
@@ -67,8 +70,12 @@ export async function startCli(opts: CliRunOptions): Promise<StartedCli> {
   });
   let stdout = '';
   let stderr = '';
-  child.stdout?.on('data', chunk => { stdout += chunk.toString(); });
-  child.stderr?.on('data', chunk => { stderr += chunk.toString(); });
+  child.stdout?.on('data', chunk => {
+    stdout += chunk.toString();
+  });
+  child.stderr?.on('data', chunk => {
+    stderr += chunk.toString();
+  });
   child.stdin?.end(opts.stdin ?? '');
   const closed = new Promise<{ exitCode: number | null; signal: string | null }>((resolve, reject) => {
     child.once('error', reject);
@@ -76,14 +83,24 @@ export async function startCli(opts: CliRunOptions): Promise<StartedCli> {
   });
 
   return {
-    child, root, stateDir, workspace, closed,
-    get stdout() { return stdout; },
-    get stderr() { return stderr; },
+    child,
+    root,
+    stateDir,
+    workspace,
+    closed,
+    get stdout() {
+      return stdout;
+    },
+    get stderr() {
+      return stderr;
+    },
     async calls() {
       const names = (await readdir(stateDir))
         .filter(name => /^call-\d+\.json$/.test(name))
         .sort((a, b) => Number(a.match(/\d+/)?.[0]) - Number(b.match(/\d+/)?.[0]));
-      return Promise.all(names.map(async name => JSON.parse(await readFile(path.join(stateDir, name), 'utf8')) as CliCall));
+      return Promise.all(
+        names.map(async name => JSON.parse(await readFile(path.join(stateDir, name), 'utf8')) as CliCall),
+      );
     },
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
