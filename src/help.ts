@@ -4,7 +4,7 @@ export const HELP_TEXT = `Usage: afk [options] "prompt"
        afk [options] --prompt-file <path>
        echo "prompt" | afk [options]
 
-Run a coding agent unattended, one task per fresh session, using the code skill.
+Run a coding agent unattended, one task per fresh session.
 
 Options:
   --agent <name>                Coding agent to run: ${agentNames().join(', ')} (default: ${DEFAULT_AGENT})

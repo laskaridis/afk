@@ -5,7 +5,7 @@ import { AGENT_FIXTURES, runAgentScenario } from './helpers/agent-fixtures.js';
 const start = '[afk] Iteration 1/10: starting agent session';
 const retry = '[afk] Iteration 2/10: retrying after execution error';
 const next = '[afk] Iteration 2/10: starting agent session';
-const complete = '[afk] Run complete: the code skill reported feature completion.';
+const complete = '[afk] Run complete: the agent reported feature completion.';
 
 const scenarios = [
   {

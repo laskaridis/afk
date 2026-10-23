@@ -35,7 +35,7 @@ export function formatTaskFailure(summary: string): string {
 export function formatFinalStatus(outcome: RunOutcome): string {
   switch (outcome.kind) {
     case 'complete':
-      return '[afk] Run complete: the code skill reported feature completion.';
+      return '[afk] Run complete: the agent reported feature completion.';
     case 'blocked':
       return `[afk] Run blocked: ${outcome.blockerText}`;
     case 'execution-error':

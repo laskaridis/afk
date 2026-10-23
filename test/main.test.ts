@@ -45,7 +45,7 @@ describe('main', () => {
     const code = await run.invoke(['Implement feature X']);
 
     expect(code).toBe(0);
-    expect(run.lines).toContain('[afk] Run complete: the code skill reported feature completion.\n');
+    expect(run.lines).toContain('[afk] Run complete: the agent reported feature completion.\n');
     const call = JSON.parse(await readFile(path.join(run.stateDir, 'call-1.json'), 'utf8'));
     expect(call.stdin).toMatch(/^Implement feature X\n\n---\nInstructions from the afk harness:/m);
     expect(call.cwd).toBe(await realpath(run.stateDir));
