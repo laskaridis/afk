@@ -3,7 +3,8 @@ import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/pro
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runSession } from '../src/session.js';
+import { PassThrough } from 'node:stream';
+import { attachStreamErrorGuards, runSession } from '../src/session.js';
 import { codexAdapter } from '../src/agents/codex.js';
 import type { AgentAdapter } from '../src/agents/types.js';
 
@@ -17,7 +18,7 @@ afterEach(async () => {
   await Promise.all(stateDirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
 });
 
-async function invoke(step: Record<string, unknown>, options: { timeoutSeconds?: number; terminationGraceMs?: number; abortSignal?: AbortSignal; agent?: AgentAdapter } = {}) {
+async function invoke(step: Record<string, unknown>, options: { timeoutSeconds?: number; terminationGraceMs?: number; abortSignal?: AbortSignal; agent?: AgentAdapter; maxStdoutChars?: number } = {}) {
   const stateDir = await mkdtemp(path.join(os.tmpdir(), 'afk-test-'));
   stateDirs.push(stateDir);
   await writeFile(path.join(stateDir, 'steps.json'), JSON.stringify([step]));
@@ -94,6 +95,54 @@ describe('runSession', () => {
   it('uses JSON printed to stdout as the final response', async () => {
     const { result } = await invoke({ stdout: '{"outcome":"complete"}' });
     expect(result).toEqual({ kind: 'response', response: { outcome: 'complete' } });
+  });
+
+  it('accepts a final response exactly at the stdout limit', async () => {
+    const message = '{"outcome":"complete"}';
+    const { result } = await invoke({ stdout: message }, { maxStdoutChars: message.length });
+    expect(result).toEqual({ kind: 'response', response: { outcome: 'complete' } });
+  });
+
+  it('rejects oversized stdout after draining the child and skips extraction', async () => {
+    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => {
+      throw new Error('oversized stdout must not be extracted');
+    } };
+    const result = await runSession({
+      agent,
+      executable: process.execPath,
+      leadingArgs: ['-e', "process.stdout.write('x'.repeat(256 * 1024))"],
+      cwd: os.tmpdir(),
+      prompt: 'x',
+      maxStdoutChars: 16,
+    });
+    expect(result).toEqual({ kind: 'execution-error', error: {
+      kind: 'invalid-response', reason: 'agent output exceeded the size limit',
+    }, stderrTail: [] });
+  });
+
+  it('keeps the exit-code error when oversized stdout exits unsuccessfully', async () => {
+    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => {
+      throw new Error('truncated stdout must not be extracted');
+    } };
+    const result = await runSession({
+      agent,
+      executable: process.execPath,
+      leadingArgs: ['-e', "process.stdout.write('x'.repeat(256 * 1024), () => { process.exitCode = 3; })"],
+      cwd: os.tmpdir(),
+      prompt: 'x',
+      maxStdoutChars: 16,
+    });
+    expect(result).toEqual({ kind: 'execution-error', error: {
+      kind: 'exited-unsuccessfully', exitCode: 3, signal: null,
+    }, stderrTail: [] });
+  });
+
+  it('guards both piped output streams against error events', () => {
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    attachStreamErrorGuards({ stdout, stderr });
+    expect(() => stdout.emit('error', new Error('stdout failed'))).not.toThrow();
+    expect(() => stderr.emit('error', new Error('stderr failed'))).not.toThrow();
   });
 
   it('maps adapter-reported failure to an execution error', async () => {

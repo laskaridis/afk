@@ -460,3 +460,28 @@
   - The task list already contained uncommitted review-task additions, so its status update stays in the working tree and is not part of this task's commit. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: TASK-020 and TASK-021 remain pending.
 ---
+## 2026-10-23 11:10:11 EEST
+- Task id: TASK-020
+- What was implemented:
+  - Bounded captured stdout to 10 MiB while continuing to drain the child stream; oversized output now reports an invalid response after a zero exit and retains the exit-code error after a non-zero exit without invoking the adapter.
+  - Bounded stderr partial and completed lines to their last 8192 characters and handled carriage returns split across chunks.
+  - Attached error listeners to both piped output streams.
+- Files changed:
+  - src/session.ts
+  - src/stderr-tail.ts
+  - test/session.test.ts
+  - test/stderr-tail.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: focused tests failed for unbounded stderr, extraction after oversized stdout, and missing stream guards; a separate regression test failed for a carriage return split from its newline.
+  - GREEN: `pnpm exec vitest run test/stderr-tail.test.ts test/session.test.ts` passed (34 tests); `pnpm typecheck` passed.
+  - A 256 KiB child stdout write with a 16-character injected limit completed and returned the size-limit error on exit 0. The corresponding exit-3 case retained the exit-code error; throwing adapters proved neither overflow path extracts truncated output. Exact-limit output parsed normally. PassThrough errors on both guarded streams did not throw.
+  - `pnpm test` passed once (20 files, 273 tests) before the carriage-return fix. Two later default parallel runs hit different known 5-second fixture startup timeouts. The full suite then passed with `pnpm exec vitest run --no-file-parallelism` (20 files, 273 tests) after the final fix.
+  - Independent read-only review found the split carriage-return edge case; its regression test and fix passed focused and full verification.
+- Learnings for future iterations:
+  - The e2e fixture tests can time out under parallel load; disabling test-file parallelism gave a full passing run.
+- Scope deviations:
+  - The task list already contained uncommitted review-task additions, so its status update stays in the working tree and is not part of this task's commit. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: TASK-021 remains pending.
+---

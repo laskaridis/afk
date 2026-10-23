@@ -32,4 +32,24 @@ describe('createStderrTail', () => {
     expect(snapshot).toEqual(['two', 'three']);
     expect(tail.lines()).toEqual(['two', 'three more']);
   });
+
+  it('keeps the last 8192 characters of a long partial or completed line', () => {
+    const longLine = 'a'.repeat(12000) + 'b'.repeat(8000);
+    const expected = longLine.slice(-8192);
+    const split = createStderrTail();
+    split.push(longLine);
+    expect(split.lines()).toEqual([expected]);
+    split.push('\n');
+    expect(split.lines()).toEqual([expected]);
+
+    const singleChunk = createStderrTail();
+    singleChunk.push(longLine + '\r\n');
+    expect(singleChunk.lines()).toEqual([expected]);
+
+    const splitCarriageReturn = createStderrTail();
+    splitCarriageReturn.push(longLine + '\r');
+    expect(splitCarriageReturn.lines()[0]).toHaveLength(8192);
+    splitCarriageReturn.push('\n');
+    expect(splitCarriageReturn.lines()).toEqual([expected]);
+  });
 });

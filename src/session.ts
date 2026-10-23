@@ -4,6 +4,13 @@ import type { ExecutionError, SessionResult } from './outcomes.js';
 import { parseProtocolResponse } from './protocol.js';
 import { createStderrTail } from './stderr-tail.js';
 
+export const MAX_STDOUT_CHARS = 10 * 1024 * 1024;
+
+export function attachStreamErrorGuards(child: Pick<ChildProcess, 'stdout' | 'stderr'>): void {
+  child.stdout?.on('error', () => {});
+  child.stderr?.on('error', () => {});
+}
+
 export interface SessionRequest {
   agent: AgentAdapter;
   executable?: string;
@@ -15,13 +22,14 @@ export interface SessionRequest {
   timeoutSeconds?: number;
   terminationGraceMs?: number;
   abortSignal?: AbortSignal;
+  maxStdoutChars?: number;
 }
 
 type ProcessResult =
   | { kind: 'launch-failed'; message: string }
   | { kind: 'timed-out' }
   | { kind: 'interrupted' }
-  | { kind: 'closed'; code: number | null; signal: string | null; stdout: string; stderrTail: string[] };
+  | { kind: 'closed'; code: number | null; signal: string | null; stdout: string; stdoutOverflowed: boolean; stderrTail: string[] };
 
 function terminate(child: ChildProcess, graceMs: number, isClosed: () => boolean): NodeJS.Timeout {
   child.kill('SIGINT');
@@ -51,9 +59,21 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
     }
     let closed = false;
     let stdout = '';
+    let stdoutOverflowed = false;
+    const maxStdoutChars = request.maxStdoutChars ?? MAX_STDOUT_CHARS;
     const stderrTail = createStderrTail();
+    attachStreamErrorGuards(child);
     child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => { stdout += chunk; });
+    child.stdout.on('data', (chunk: string) => {
+      if (stdoutOverflowed) return;
+      const remaining = maxStdoutChars - stdout.length;
+      if (chunk.length > remaining) {
+        stdout += chunk.slice(0, remaining);
+        stdoutOverflowed = true;
+      } else {
+        stdout += chunk;
+      }
+    });
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => { stderrTail.push(chunk); });
     let timedOut = false;
@@ -78,7 +98,7 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
       request.abortSignal?.removeEventListener('abort', onAbort);
       if (timeoutTimer) clearTimeout(timeoutTimer);
       if (killTimer) clearTimeout(killTimer);
-      resolve(interrupted ? { kind: 'interrupted' } : timedOut ? { kind: 'timed-out' } : { kind: 'closed', code, signal, stdout, stderrTail: stderrTail.lines() });
+      resolve(interrupted ? { kind: 'interrupted' } : timedOut ? { kind: 'timed-out' } : { kind: 'closed', code, signal, stdout, stdoutOverflowed, stderrTail: stderrTail.lines() });
     });
     if (request.abortSignal?.aborted) onAbort();
     if (request.timeoutSeconds !== undefined) {
@@ -113,7 +133,7 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
     return executionError({ kind: 'launch-failed', message: processResult.message });
   }
   if (processResult.code !== 0) {
-    if (processResult.code !== null) {
+    if (processResult.code !== null && !processResult.stdoutOverflowed) {
       const extracted = request.agent.extractFinalMessage(processResult.stdout);
       if (extracted.kind === 'failed') {
         return executionError({ kind: 'agent-reported-error', reason: extracted.reason });
@@ -123,6 +143,10 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
       kind: 'exited-unsuccessfully', exitCode: processResult.code, signal: processResult.signal,
     });
   }
+
+  if (processResult.stdoutOverflowed) return executionError({
+    kind: 'invalid-response', reason: 'agent output exceeded the size limit',
+  });
 
   const extracted = request.agent.extractFinalMessage(processResult.stdout);
   if (extracted.kind === 'missing') return executionError({ kind: 'missing-response' });
