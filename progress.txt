@@ -302,3 +302,24 @@
   - None. No production files were modified; the pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-23 09:58:22 EEST
+- Task id: TASK-017
+- What was implemented:
+  - Added shared harness scenarios for execution-error stderr ordering, the last 20 stderr lines, and stderr suppression on success, timeout, and interruption.
+  - Added Claude-only harness scenarios for an agent-reported error subtype and malformed JSON output.
+- Files changed:
+  - test/harness.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - Shared scenarios run through `describe.each(agentNames())` for Codex and Claude; each compares its exact stderr lines and exit code with the same Codex scenario. The error cases verify `boom` directly after the execution-error line and `l6` through `l25` from 25 lines. The success, timeout, and interruption cases verify no `noise` line.
+  - Claude-only scenarios verify the `error_max_turns` subtype and the `agent output could not be parsed` reason; they are outside the shared agent loop.
+  - `pnpm exec vitest run test/harness.test.ts` passed: 33 tests. `pnpm typecheck` passed. `pnpm test` passed: 19 files and 260 tests. `git diff --check` passed.
+  - Read-only review found no concrete scope or acceptance-criteria issues.
+- Learnings for future iterations:
+  - Shared fixture scenarios can compare full stderr lines across agents while keeping Claude-only result classification separate.
+- Scope deviations:
+  - None. No production files were modified; the pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---

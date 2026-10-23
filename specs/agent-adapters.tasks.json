@@ -490,7 +490,7 @@
       "id": "TASK-017",
       "title": "Add shared stderr-tail tests and Claude-specific harness tests",
       "objective": "Extend test/harness.test.ts with stderr-tail scenarios for every adapter and with Claude-only result classification scenarios.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-004",
       "requirements_addressed": ["AC-017", "AC-018", "AC-008", "AC-023"],
       "out_of_scope": [
