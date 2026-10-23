@@ -17,6 +17,7 @@
     "prepare": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "lint": "biome lint .",
     "format": "biome format --write .",
     "format:check": "biome format .",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.2",
     "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.5",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   },
