@@ -30,7 +30,7 @@ A **layered pipeline**: a functional core inside an imperative shell, with two e
 | `src/agents/` | Agent adapters and registry |
 | `src/run-loop.ts` | Run Loop |
 | `src/session.ts`, `src/stderr-tail.ts` | Session Runner |
-| `src/session-prompt.ts` | Session Prompt |
+| `src/session-prompt.ts`, `src/harness.md` | Session Prompt |
 | `src/protocol.ts` | Protocol Parser |
 | `src/report.ts`, `src/exit-codes.ts` | Reporter |
 | `src/outcomes.ts` | Outcome Model |
@@ -47,7 +47,7 @@ A **layered pipeline**: a functional core inside an imperative shell, with two e
 | **Agent Registry** | The single list of available adapters and the default. The source for validation, help, and tests. |
 | **Run Loop** | Run policy: iterates sessions, decides when to retry, continue or stop, and produces the run outcome. Agent-agnostic. |
 | **Session Runner** | Runs one session: builds the command via the adapter, runs the agent as a child process, classifies the result, and passes the final message to the protocol parser. The only component that combines an adapter with a process. |
-| **Session Prompt** | Adds the harness instructions to the user's prompt: use the `code` skill, answer with the protocol, do not ask questions. |
+| **Session Prompt** | Adds the harness instructions to the user's prompt: the loop workflow (one task per session) and response protocol from `src/harness.md`, and the instruction not to ask questions. |
 | **Protocol Parser** | Validates the agent's final message against the harness protocol. |
 | **Reporter** | All user-facing wording, status lines, and the mapping from run outcome to exit code. Never names a specific agent. |
 | **Outcome Model** | The shared, agent-neutral vocabulary: session results, execution errors, run outcomes. |
@@ -89,7 +89,6 @@ Adding an agent means writing one adapter and registering it. An adapter provide
 ## External dependencies
 
 - **Agent CLIs** (i.e. `claude`, `codex`), launched as child processes. Adapters encode assumptions about their flags and output format.
-- **The `code` skill**, which the agent is told to use and which defines the coding loop. The harness assumes it follows the response protocol.
 
 ## Security
 
@@ -99,7 +98,6 @@ Adding an agent means writing one adapter and registering it. An adapter provide
 
 - **External coupling to agent CLIs.** Test fakes copy the adapters' assumptions about output formats, so verify against the real CLI whenever an agent changes.
 - **Adapter output classification.** The Session Runner trusts each adapter's classification of output as missing, invalid or agent-reported error, and it applies to non-zero exits as well as successful ones. An adapter that conflates them changes retry behaviour and diagnostics.
-- **Protocol defined twice.** The Session Prompt describes the response protocol in prose and the Protocol Parser enforces it. Change both together. No test currently ties them.
-- **Dependency on the `code` skill.** If the skill is missing or changes its protocol, every session ends as an invalid response.
+- **Protocol defined twice.** `src/harness.md` describes the response protocol in prose and the Protocol Parser enforces it. Change both together. No test currently ties them.
 - **Run Loop mixes policy and presentation.** Acceptable at this size. If a machine-readable output mode is needed, have it emit events to the Reporter instead.
 - **Process control inside the Session Runner.** Timeout, interruption and exit events race each other in the same function that classifies results. Change with care and keep the related tests green.

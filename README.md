@@ -2,15 +2,14 @@
 
 Leave a coding agent working on a feature while you're away from the keyboard.
 
-`afk` runs a coding agent in a loop. Each iteration starts a **fresh, non-interactive agent session** that uses the `code` skill to implement **one task**. When the session ends, `afk` reads its final answer and decides whether to start another session, finish, or stop. Nobody is asked questions or to approve anything along the way.
+`afk` runs a coding agent in a loop. Each iteration starts a **fresh, non-interactive agent session** that implements **one task**. When the session ends, `afk` reads its final answer and decides whether to start another session, finish, or stop. Nobody is asked questions or to approve anything along the way.
 
-`afk` only manages the loop. Picking tasks, writing code, running tests, committing, and tracking progress are all done by the `code` skill, which keeps its state in your project (for example a tasks file and `progress.txt`).
+`afk` only manages the loop. Picking tasks, writing code, running tests, committing, and tracking progress are all done by the agent following the loop instructions `afk` ships with ([`src/harness.md`](src/harness.md)). The agent keeps its state in your project (for example a tasks file and `progress.txt`).
 
 ## Prerequisites
 
 - Node.js 20 or newer
 - A supported coding agent, installed and authenticated (see [Supported agents](#supported-agents))
-- The `code` skill, discoverable by the selected agent in your project (available from [laskaridis/skills](https://github.com/laskaridis/skills/tree/main/skills/code))
 - A prepared workspace: the right Git branch checked out, dependencies installed, and a specification and task list for the agent to work from
 
 `afk` does not create branches, install dependencies, install skills, or log you in to the agent.
@@ -41,7 +40,7 @@ afk "Implement the feature in specs/my-feature.spec.md using specs/my-feature.ta
 
 Run `afk --help` to see all options.
 
-The prompt is yours: reference whatever specs or task files the agent should use. `afk` appends its own instructions telling the agent to use the `code` skill for one task and to reply with a machine-readable result.
+The prompt is yours: reference whatever specs or task files the agent should use. `afk` appends its own instructions with the loop workflow (one task per session, progress notes, commit) and telling the agent to reply with a machine-readable result.
 
 ## Giving `afk` a prompt
 
@@ -90,21 +89,21 @@ The agent's output is hidden while it runs. `afk` prints status lines on stderr 
 [afk] Iteration 2/10: starting agent session
 [afk] Task failed: <summary reported by the skill>
 ...
-[afk] Run complete: the code skill reported feature completion.
+[afk] Run complete: the agent reported feature completion.
 ```
 
 If a session ends with an execution error, up to the last 20 lines of the agent's stderr appear directly after the `[afk] Execution error: …` line. Agent stderr is not shown for a valid response, timeout, or interruption.
 
 ## How a run ends
 
-After each session, the `code` skill's final message must be a single JSON object. `afk` acts on it:
+After each session, the agent's final message must be a single JSON object. `afk` acts on it:
 
-| Skill reports | What `afk` does |
+| Agent reports | What `afk` does |
 | --- | --- |
 | `repeat` | Starts a fresh session for the next task |
 | `complete` | Prints a completion message and exits successfully |
 | `blocked` (with `blocker_text`) | Prints the blocker and stops, because a human is needed |
-| `fail` (with `failure_summary`) | Prints the summary and starts a fresh session so the skill can handle the follow-up work |
+| `fail` (with `failure_summary`) | Prints the summary and starts a fresh session so the agent can handle the follow-up work |
 
 `afk` trusts these answers. It does not check your tasks, tests, or Git state itself.
 
@@ -129,13 +128,13 @@ If the agent fails to launch, exits unsuccessfully, or returns a missing or malf
 
 ## Continuing later
 
-`afk` keeps no logs, history, or checkpoints. To resume after any stop, fix the cause if needed and run the same command again in the same workspace. You get a fresh session budget, and the `code` skill picks up from the task statuses and progress notes it saved in the project.
+`afk` keeps no logs, history, or checkpoints. To resume after any stop, fix the cause if needed and run the same command again in the same workspace. You get a fresh session budget, and the agent picks up from the task statuses and progress notes it saved in the project.
 
 ## Running unattended
 
 `afk` runs in the foreground. To leave it running after you close your terminal, use your usual tool, such as `tmux`, `screen`, or `nohup`.
 
-Sessions use the selected agent's permission mode described below. `afk` offers no full-access mode and does not widen permissions if an action is denied; the skill reports `blocked` instead.
+Sessions use the selected agent's permission mode described below. `afk` offers no full-access mode and does not widen permissions if an action is denied; the agent reports `blocked` instead.
 
 ## Supported agents
 
@@ -145,4 +144,4 @@ Requires the [Codex CLI](https://github.com/openai/codex) installed and authenti
 
 ### Claude Code (`--agent claude`)
 
-Requires the Claude Code CLI installed and authenticated, the `auto` permission mode available for the account and model, and the `code` skill discoverable by Claude Code (for example under `.claude/skills`). `afk` launches `claude -p --output-format json --permission-mode auto [--model …] [--effort …]` in the selected workspace, sends the prompt on stdin, and reads the final message from its JSON output. Claude Code honors `--model` and `--reasoning-effort` (passed as `--effort`).
+Requires the Claude Code CLI installed and authenticated, the `auto` permission mode available for the account and model. `afk` launches `claude -p --output-format json --permission-mode auto [--model …] [--effort …]` in the selected workspace, sends the prompt on stdin, and reads the final message from its JSON output. Claude Code honors `--model` and `--reasoning-effort` (passed as `--effort`).

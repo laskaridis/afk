@@ -14,15 +14,25 @@ describe('buildSessionPrompt', () => {
 });
 
 describe('HARNESS_INSTRUCTIONS', () => {
-  it('directs the session to use the code skill for one task and its exact response protocol', () => {
-    expect(HARNESS_INSTRUCTIONS).toBe(
-      [
-        '---',
-        'Instructions from the afk harness:',
-        '- Use the `code` skill to implement exactly one task for the feature described above.',
-        '- Follow the code skill\'s coding loop response protocol: your final message must be exactly one JSON object with an "outcome" of "repeat", "complete", "blocked", or "fail", with no other text.',
-        '- Nobody is available to answer questions or approve actions during this session.',
-      ].join('\n'),
-    );
+  it('is self-contained: carries the workflow and response protocol without referring to an external skill', () => {
+    expect(HARNESS_INSTRUCTIONS).toMatch(/^---\nInstructions from the afk harness:/);
+    expect(HARNESS_INSTRUCTIONS).toContain('exactly one task');
+    expect(HARNESS_INSTRUCTIONS).toContain('Nobody is available to answer questions');
+    for (const shape of [
+      '{"outcome":"repeat"}',
+      '{"outcome":"complete"}',
+      '{"outcome":"blocked","blocker_text":"..."}',
+      '{"outcome":"fail","failure_summary":"..."}',
+    ]) {
+      expect(HARNESS_INSTRUCTIONS).toContain(shape);
+    }
+    for (const rule of [
+      'nothing else',
+      'do not wrap it in markdown fences',
+      'must not include any additional fields',
+    ]) {
+      expect(HARNESS_INSTRUCTIONS.toLowerCase()).toContain(rule);
+    }
+    expect(HARNESS_INSTRUCTIONS).not.toMatch(/code skill/i);
   });
 });

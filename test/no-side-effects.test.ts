@@ -55,7 +55,7 @@ describe.each(agentNames())('%s quiet runs', agentName => {
       expect(stderrLines).toEqual([
         '[afk] Iteration 1/10: starting agent session',
         '[afk] Iteration 2/10: starting agent session',
-        '[afk] Run complete: the code skill reported feature completion.',
+        '[afk] Run complete: the agent reported feature completion.',
       ]);
       expect(stderrLines.every(line => line.startsWith('[afk] '))).toBe(true);
       expect(stdoutText).toBe('');

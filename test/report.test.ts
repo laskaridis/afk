@@ -62,7 +62,7 @@ describe('activity lines', () => {
 
 describe('final statuses', () => {
   it.each<[RunOutcome, string]>([
-    [{ kind: 'complete' }, '[afk] Run complete: the code skill reported feature completion.'],
+    [{ kind: 'complete' }, '[afk] Run complete: the agent reported feature completion.'],
     [{ kind: 'blocked', blockerText: 'Need tasks' }, '[afk] Run blocked: Need tasks'],
     [
       { kind: 'execution-error', error: { kind: 'missing-response' } },
