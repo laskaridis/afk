@@ -146,14 +146,3 @@ Requires the [Codex CLI](https://github.com/openai/codex) installed and authenti
 ### Claude Code (`--agent claude`)
 
 Requires the Claude Code CLI installed and authenticated, the `auto` permission mode available for the account and model, and the `code` skill discoverable by Claude Code (for example under `.claude/skills`). `afk` launches `claude -p --output-format json --permission-mode auto [--model …] [--effort …]` in the selected workspace, sends the prompt on stdin, and reads the final message from its JSON output. Claude Code honors `--model` and `--reasoning-effort` (passed as `--effort`).
-
-## Development
-
-This project uses [pnpm](https://pnpm.io); run `pnpm install` first.
-
-```sh
-pnpm typecheck      # type-check
-pnpm test           # run the test suite (vitest)
-pnpm coverage       # run the tests with a coverage report
-pnpm build          # compile to dist/
-```
