@@ -19,7 +19,8 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
       # Trusted publishing needs npm >= 11.5.1; Node 22 bundles npm 10.
-      - run: npm install -g npm@latest
+      # Pinned to 11: npm 12 changes the output shape of `npm pack --json`.
+      - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
