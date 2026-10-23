@@ -65,4 +65,73 @@ describe.each(agentNames())('%s harness protocol outcomes', agentName => {
     expect({ exitCode: actual.exitCode, stderrLines: actual.stderrLines })
       .toEqual({ exitCode: codex.exitCode, stderrLines: codex.stderrLines });
   });
+
+  it.each([
+    {
+      name: 'retries a failed launch and completes',
+      steps: [{ exitCode: 3 }, { finalMessage: '{"outcome":"complete"}' }],
+      args: [],
+      exitCode: 0,
+      lines: [start, '[afk] Execution error: agent exited unsuccessfully with exit code 3', retry, complete],
+      calls: 2,
+    },
+    {
+      name: 'stops after two consecutive execution errors',
+      steps: [{ exitCode: 1 }],
+      args: [],
+      exitCode: 1,
+      lines: [start, '[afk] Execution error: agent exited unsuccessfully with exit code 1', retry,
+        '[afk] Execution error: agent exited unsuccessfully with exit code 1',
+        '[afk] Run stopped after a repeated execution error: agent exited unsuccessfully with exit code 1'],
+      calls: 2,
+    },
+    {
+      name: 'stops at the iteration limit',
+      steps: [{ finalMessage: '{"outcome":"repeat"}' }],
+      args: ['--max-iterations', '2'],
+      exitCode: 1,
+      lines: ['[afk] Iteration 1/2: starting agent session', '[afk] Iteration 2/2: starting agent session',
+        '[afk] Run stopped: reached the iteration limit of 2 without reported completion.'],
+      calls: 2,
+    },
+    {
+      name: 'stops without retrying after a timeout',
+      steps: [{ sleepMs: 3000, finalMessage: '{"outcome":"complete"}' }],
+      args: ['--session-timeout', '1'],
+      exitCode: 1,
+      lines: [start, '[afk] Run stopped: agent session timed out after 1 seconds.'],
+      calls: 1,
+    },
+  ])('$name', async scenario => {
+    const actual = await runAgentScenario(agentName, scenario.steps, scenario.args);
+    const codex = await runAgentScenario('codex', scenario.steps, scenario.args);
+
+    expect(actual.exitCode).toBe(scenario.exitCode);
+    expect(actual.stderrLines).toEqual(scenario.lines);
+    expect(actual.calls).toHaveLength(scenario.calls);
+    expect({ exitCode: actual.exitCode, stderrLines: actual.stderrLines })
+      .toEqual({ exitCode: codex.exitCode, stderrLines: codex.stderrLines });
+  });
+
+  it('stops without retrying after interruption', async () => {
+    async function interruptedRun(name: string) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 500);
+      try {
+        return await runAgentScenario(name, [{ sleepMs: 3000, finalMessage: '{"outcome":"complete"}' }],
+          [], { abortSignal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    const actual = await interruptedRun(agentName);
+    const codex = await interruptedRun('codex');
+
+    expect(actual.exitCode).toBe(130);
+    expect(actual.stderrLines).toEqual([start, '[afk] Run interrupted by user.']);
+    expect(actual.calls).toHaveLength(1);
+    expect({ exitCode: actual.exitCode, stderrLines: actual.stderrLines })
+      .toEqual({ exitCode: codex.exitCode, stderrLines: codex.stderrLines });
+  });
 });

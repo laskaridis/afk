@@ -457,7 +457,7 @@
       "id": "TASK-016",
       "title": "Add shared harness tests for retries, limits, timeout and interruption",
       "objective": "Extend test/harness.test.ts so that retry, iteration-limit, timeout and interruption scenarios run against every registered adapter with identical output.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-005",
       "requirements_addressed": ["AC-023", "AC-009", "AC-011", "AC-012"],
       "out_of_scope": [

@@ -281,3 +281,24 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-23 09:56:12 EEST
+- Task id: TASK-016
+- What was implemented:
+  - Added registry-driven harness scenarios for an unsuccessful exit followed by a successful retry, two consecutive execution errors, the iteration limit, session timeout, and interruption.
+  - Compared each scenario's stderr lines and exit code against the same Codex fixture run; checked that timeout and interruption launch only one session.
+- Files changed:
+  - test/harness.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - `pnpm exec vitest run test/harness.test.ts` passed: 21 tests, including each new scenario for both registered agents.
+  - New scenarios assert exact status lines and exit codes for both agents, one fixture call after timeout and interruption, and identical lines and exit codes to Codex for each scenario.
+  - `pnpm typecheck` passed. `pnpm test` passed on rerun: 19 files and 248 tests. The first full run had a five-second timeout in an existing e2e fixture test, matching the intermittent startup delay observed in prior iterations.
+  - `git diff --check` passed before bookkeeping changes.
+- Learnings for future iterations:
+  - `runAgentScenario` accepts extra CLI arguments and an abort signal; fixture `sleepMs` allows a session to be interrupted before it reports a final response.
+- Scope deviations:
+  - None. No production files were modified; the pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
