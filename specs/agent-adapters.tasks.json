@@ -557,7 +557,7 @@
       "id": "TASK-013",
       "title": "Rewrite the README for agent-neutral usage",
       "objective": "Update README.md to describe afk as agent-neutral, document --agent, quiet output and stderr tails, and add a 'Supported agents' section.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-006",
       "requirements_addressed": ["AC-025", "AC-010", "AC-017"],
       "out_of_scope": [

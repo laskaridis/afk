@@ -343,3 +343,24 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-23 10:03:34 EEST
+- Task id: TASK-013
+- What was implemented:
+  - Rewrote README usage, prerequisites, options, output, retry, interruption, and permission descriptions for the selected coding agent.
+  - Added Supported agents sections with Codex and Claude Code prerequisites, launch command shapes, prompt and result handling, and honored settings.
+- Files changed:
+  - README.md
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - Checked all TASK-013 acceptance criteria directly against the README: both agent sections and command shapes, registry names and Codex default, quiet output, last 20 stderr lines after execution errors, removed old phrases, and no Codex branding outside Supported agents.
+  - `pnpm typecheck` passed.
+  - `pnpm test` passed: 20 files and 262 tests.
+  - `git diff --check` passed before the final wording adjustment; final diff checked again before commit.
+- Learnings for future iterations:
+  - README documents the implemented permission modes under Supported agents; the general unattended section can refer to those without naming either agent.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
