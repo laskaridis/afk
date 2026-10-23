@@ -17,7 +17,7 @@ it('describes both supported coding agents', async () => {
 
 it('builds on install and runs the packed executable through npm exec', async () => {
   const packageJson = JSON.parse(await readFile(path.join(projectDir, 'package.json'), 'utf8'));
-  expect(packageJson.scripts.prepare).toBe('tsc -p tsconfig.json && cp src/harness.md dist/harness.md');
+  expect(packageJson.scripts.prepare).toBe('npm run build');
 
   const root = await mkdtemp(path.join(os.tmpdir(), 'afk-package-test-'));
   try {
