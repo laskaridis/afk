@@ -2,8 +2,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const stateDir = process.env.FAKE_CODEX_STATE_DIR;
-if (!stateDir) throw new Error('FAKE_CODEX_STATE_DIR is required');
+const stateDir = process.env.FAKE_AGENT_STATE_DIR ?? process.env.FAKE_CODEX_STATE_DIR;
+if (!stateDir) throw new Error('FAKE_AGENT_STATE_DIR is required');
 
 const steps = JSON.parse(await readFile(path.join(stateDir, 'steps.json'), 'utf8'));
 let count = 0;

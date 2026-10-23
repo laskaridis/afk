@@ -1,6 +1,7 @@
 ## Project discovery
 - Source modules use `.js` import suffixes under NodeNext; tests import their TypeScript sources through the same suffix.
 - `main()` passes the parsed adapter to every session; the test-only executable override is `io.launcher`.
+- Shared agent fixture tests use `FAKE_AGENT_STATE_DIR`; fake Codex also accepts the older `FAKE_CODEX_STATE_DIR` for existing tests.
 ---
 
 ## 2026-10-21 17:32:18 EEST
@@ -251,6 +252,31 @@
   - Exit codes and other options stayed in place; task acceptance criteria were checked against the focused and full tests.
 - Learnings for future iterations:
   - Help text now imports `agentNames()` and `DEFAULT_AGENT` directly from the registry; adding a registry entry updates the help list automatically.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
+
+## 2026-10-23 09:53:16 EEST
+- Task id: TASK-011
+- What was implemented:
+  - Added a fake Claude executable that emits JSON result objects and shares the Codex fixture step format.
+  - Added a shared fixture helper and registry-driven harness tests for repeat, complete, blocked, fail, invalid protocol text, and empty output.
+- Files changed:
+  - test/fixtures/fake-codex.mjs
+  - test/fixtures/fake-claude.mjs
+  - test/helpers/agent-fixtures.ts
+  - test/harness.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/harness.test.ts` failed because the shared fixture helper was missing.
+  - GREEN: the same command passed 11 tests after adding the fixtures and helper.
+  - Each of five scenarios asserts exact stderr lines, exit code, call count, hidden stdout, and parity with a Codex run using the same steps for each registered agent.
+  - `describe.each(agentNames())` covers all registered names; a separate assertion requires the fixture table to have exactly those names. The helper launches `process.execPath` with the fixture path, so the harness tests do not invoke real agent binaries.
+  - `pnpm typecheck` passed; `pnpm test` passed with 19 files and 238 tests; `git diff --check` passed. Read-only review found no TASK-011 blocker.
+- Learnings for future iterations:
+  - The shared helper accepts extra CLI arguments and an abort signal, which TASK-016 can use for timeout and interruption scenarios.
 - Scope deviations:
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.

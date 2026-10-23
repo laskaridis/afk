@@ -417,7 +417,7 @@
       "id": "TASK-011",
       "title": "Add Claude fixture and shared harness tests for protocol outcomes",
       "objective": "Create a fake Claude executable fixture, a shared per-agent fixture helper, and test/harness.test.ts running the protocol-outcome scenarios against every registered adapter.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-005",
       "requirements_addressed": ["AC-023", "AC-012", "AC-008"],
       "out_of_scope": [
