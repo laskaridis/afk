@@ -156,5 +156,3 @@ pnpm typecheck      # type-check
 pnpm test           # run the test suite (vitest)
 pnpm build          # compile to dist/
 ```
-
-See [specs/afk-cli-core.spec.md](specs/afk-cli-core.spec.md) for the full behavior specification.
