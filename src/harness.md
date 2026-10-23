@@ -24,7 +24,7 @@ Before you write any code:
 ### 2. Pick ONE task and implement it
 
 - Pick the highest-priority task that is not yet implemented and has no pending dependencies. Work on a single task only.
-- Use test-driven development (RED, GREEN, REFACTOR).
+- Use test-driven development (RED, GREEN, REFACTOR). Check for any relevant skills available".
 - Follow the project's domain language, architecture, and conventions. Do not invent your own, and do not make architectural or product-policy decisions that contradict or extend the specification.
 - Keep changes within the scope of the task. No unrelated behavior, speculative abstractions, or unnecessary refactoring.
 - Assume you are already in the correct isolated workspace. Do not create a git branch or worktree.
