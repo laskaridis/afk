@@ -1,6 +1,6 @@
 {
   "name": "@laskaridis/afk",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Run a coding agent (Codex, Claude Code) unattended, one task per fresh session",
   "type": "module",
   "bin": {
