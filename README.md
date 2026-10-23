@@ -154,5 +154,6 @@ This project uses [pnpm](https://pnpm.io); run `pnpm install` first.
 ```sh
 pnpm typecheck      # type-check
 pnpm test           # run the test suite (vitest)
+pnpm coverage       # run the tests with a coverage report
 pnpm build          # compile to dist/
 ```
