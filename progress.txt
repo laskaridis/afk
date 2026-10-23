@@ -323,3 +323,23 @@
   - None. No production files were modified; the pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-23 10:00 EEST
+- Task id: TASK-012
+- What was implemented:
+  - Added registry-driven tests for a two-session run that leaves the workspace and temporary directory empty, hides agent output, and emits exactly the expected harness status lines.
+- Files changed:
+  - test/no-side-effects.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - The focused test passed for both registered agents: `pnpm exec vitest run test/no-side-effects.test.ts` (2 tests).
+  - Each run used a fresh workspace and TMPDIR with fixture state outside both; the first session slept 1500 ms and both wrote `AGENT-NOISE` to stderr. Assertions checked both directories were empty, stdout was empty, stderr was exactly two iteration lines and the final status line, and neither agent noise nor protocol text appeared in output.
+  - `pnpm typecheck` passed; `pnpm test` passed with 20 files and 262 tests; `git diff --check` passed.
+  - The test was green when first added because this task validates behavior already implemented; no production change or refactor was needed.
+- Learnings for future iterations:
+  - Fixture state needs its own directory when asserting that the selected workspace and TMPDIR remain empty.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---

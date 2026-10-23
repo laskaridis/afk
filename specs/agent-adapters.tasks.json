@@ -522,7 +522,7 @@
       "id": "TASK-012",
       "title": "Test that runs write no files and print no progress lines",
       "objective": "Add tests proving that a run creates no log, temporary or history files and prints only [afk] status lines on stderr, with no heartbeat lines.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-003",
       "requirements_addressed": ["AC-014", "AC-015", "AC-010"],
       "out_of_scope": [
