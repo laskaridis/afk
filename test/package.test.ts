@@ -7,6 +7,12 @@ import { expect, it } from 'vitest';
 
 const projectDir = fileURLToPath(new URL('..', import.meta.url));
 
+it('describes both supported coding agents', async () => {
+  const packageJson = JSON.parse(await readFile(path.join(projectDir, 'package.json'), 'utf8'));
+  expect(packageJson.description).toBe('Run a coding agent (Codex, Claude Code) unattended, one task per fresh session');
+  expect(packageJson.description).not.toBe('Run a Codex coding agent unattended, one task per fresh session');
+});
+
 it('builds on install and runs the packed executable through npm exec', async () => {
   const packageJson = JSON.parse(await readFile(path.join(projectDir, 'package.json'), 'utf8'));
   expect(packageJson.scripts.prepare).toBe('tsc -p tsconfig.json');

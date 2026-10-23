@@ -596,7 +596,7 @@
       "id": "TASK-014",
       "title": "Make the package description agent-neutral",
       "objective": "Update the description field in package.json so it no longer names Codex as the only agent.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-006",
       "requirements_addressed": ["AC-026"],
       "out_of_scope": [

@@ -364,3 +364,26 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-23 10:05:17 EEST
+- Task id: TASK-014
+- What was implemented:
+  - Updated the package description to name both supported coding agents without presenting Codex as the only choice.
+  - Added a package metadata assertion for the exact new description and against the old one.
+- Files changed:
+  - package.json
+  - test/package.test.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: `pnpm exec vitest run test/package.test.ts -t 'describes both supported coding agents'` failed because the old description was present.
+  - GREEN: the same focused command passed after changing the description.
+  - `pnpm test` passed: 20 files and 263 tests.
+  - Checked that package.json changed only its description, pnpm-lock.yaml was untouched, and `git diff --check` passed.
+  - The exact description assertion establishes AC-026; the diff establishes the task's file-scope criterion.
+- Learnings for future iterations:
+  - Package metadata has a dedicated test in test/package.test.ts, including an npm pack smoke test.
+- Scope deviations:
+  - None. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: None.
+---
