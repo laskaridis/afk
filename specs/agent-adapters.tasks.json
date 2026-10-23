@@ -661,6 +661,37 @@
         "Running the real agents requires network access and the user's authenticated sessions."
       ],
       "dependencies": ["TASK-009", "TASK-011", "TASK-016", "TASK-017"]
+    },
+    {
+      "id": "TASK-021",
+      "title": "Resolve the selected agent adapter once in parseOptions",
+      "objective": "Remove the duplicate getAgent lookup and the non-null assertion in src/options.ts.",
+      "status": "completed",
+      "story_addressed": "US-001",
+      "requirements_addressed": ["AC-001", "AC-002", "AC-003", "AC-022"],
+      "out_of_scope": [
+        "Do not change the error message or option semantics."
+      ],
+      "existing_context": [
+        "src/options.ts validates --agent with getAgent(values.agent) and later calls getAgent(values.agent ?? DEFAULT_AGENT)! again.",
+        "src/run-loop.ts slices stderrTail to 20 lines although createStderrTail already enforces the limit; the slice is intentional defense and must stay (TASK-007 AC)."
+      ],
+      "constraints": [
+        "Behavior must not change; all TASK-008 acceptance criteria still hold."
+      ],
+      "implementation_guidelines": [
+        "Compute `const agent = getAgent(values.agent ?? DEFAULT_AGENT)` once; if agent is undefined return the existing 'must be one of' error; reuse `agent` when building options without `!`.",
+        "Keep help detection first so '--agent bogus --help' still returns help."
+      ],
+      "acceptance_criteria": [
+        "src/options.ts calls getAgent exactly once and contains no non-null assertion on it.",
+        "All existing test/options.test.ts cases for --agent pass unchanged.",
+        "`pnpm typecheck` and `pnpm test` pass."
+      ],
+      "assumptions": [
+        "DEFAULT_AGENT is always a registered name (asserted by the registry test)."
+      ],
+      "dependencies": ["TASK-008"]
     }
   ]
 }

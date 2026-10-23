@@ -485,3 +485,24 @@
   - The task list already contained uncommitted review-task additions, so its status update stays in the working tree and is not part of this task's commit. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: TASK-021 remains pending.
 ---
+## 2026-10-23 11:12:11 EEST
+- Task id: TASK-021
+- What was implemented:
+  - Resolved the selected or default agent once after option validation and reused the narrowed adapter in the parsed options.
+  - Preserved the registered-name error and early help precedence.
+- Files changed:
+  - src/options.ts
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: the source check found two `getAgent` calls and a non-null assertion in `src/options.ts` before the change.
+  - GREEN: `rg -n 'getAgent\\(' src/options.ts` found exactly one call after the change, and the non-null assertion was removed.
+  - `pnpm exec vitest run test/options.test.ts` passed all 36 existing tests, including default, explicit agents, invalid names, empty values, and help precedence.
+  - `pnpm typecheck` passed; `pnpm test` passed with 20 files and 273 tests.
+  - The unchanged error string and existing test assertions establish that option semantics remain the same.
+- Learnings for future iterations:
+  - The registry test establishes that the default agent is registered, so the single lookup can safely cover both default and explicit selections.
+- Scope deviations:
+  - None. The task list had pre-existing uncommitted review-task additions; only the current task's status is staged for this commit. The pre-existing untracked prompt.txt was untouched.
+- Follow up needed: None.
+---

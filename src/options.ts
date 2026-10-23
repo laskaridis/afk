@@ -62,7 +62,8 @@ export function parseOptions(argv: string[], processCwd: string): ParseOptionsRe
   if (values['reasoning-effort'] !== undefined && values['reasoning-effort'].trim() === '') {
     return { ok: false, message: '--reasoning-effort must not be empty' };
   }
-  if (values.agent !== undefined && getAgent(values.agent) === undefined) {
+  const agent = getAgent(values.agent ?? DEFAULT_AGENT);
+  if (agent === undefined) {
     return { ok: false, message: `--agent must be one of: ${agentNames().join(', ')}, got "${values.agent}"` };
   }
 
@@ -82,7 +83,7 @@ export function parseOptions(argv: string[], processCwd: string): ParseOptionsRe
       positionals,
       promptFile: values['prompt-file'],
       cwd,
-      agent: getAgent(values.agent ?? DEFAULT_AGENT)!,
+      agent,
       model: values.model,
       reasoningEffort: values['reasoning-effort'],
       maxIterations: iterationValue === undefined ? 10 : Number(iterationValue),
