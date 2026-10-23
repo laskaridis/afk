@@ -228,4 +228,30 @@ describe('Claude result classification', () => {
     expect(actual.calls).toHaveLength(2);
     expect(actual.stdout).toBe('');
   });
+
+  it.each([
+    {
+      name: 'reports an agent error on a non-zero exit',
+      step: { claudeError: 'error_max_turns', exitCode: 1, stderr: 'Claude detail\n' },
+      reason: 'agent exited unsuccessfully: Claude reported an error (subtype: error_max_turns)',
+    },
+    {
+      name: 'keeps the exit code for malformed output',
+      step: { stdout: 'not json', exitCode: 1, stderr: 'Parse detail\n' },
+      reason: 'agent exited unsuccessfully with exit code 1',
+    },
+    {
+      name: 'keeps the exit code for a protocol response',
+      step: { finalMessage: '{"outcome":"complete"}', exitCode: 1, stderr: 'Exit detail\n' },
+      reason: 'agent exited unsuccessfully with exit code 1',
+    },
+  ])('$name', async scenario => {
+    const actual = await runAgentScenario('claude', [scenario.step, { finalMessage: '{"outcome":"complete"}' }]);
+
+    expect(actual.exitCode).toBe(0);
+    expect(actual.stderrLines).toEqual([
+      start, `[afk] Execution error: ${scenario.reason}`, scenario.step.stderr.trimEnd(), retry, complete,
+    ]);
+    expect(actual.calls).toHaveLength(2);
+  });
 });

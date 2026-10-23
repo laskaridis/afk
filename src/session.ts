@@ -113,6 +113,12 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
     return executionError({ kind: 'launch-failed', message: processResult.message });
   }
   if (processResult.code !== 0) {
+    if (processResult.code !== null) {
+      const extracted = request.agent.extractFinalMessage(processResult.stdout);
+      if (extracted.kind === 'failed') {
+        return executionError({ kind: 'agent-reported-error', reason: extracted.reason });
+      }
+    }
     return executionError({
       kind: 'exited-unsuccessfully', exitCode: processResult.code, signal: processResult.signal,
     });

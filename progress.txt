@@ -433,3 +433,30 @@
   - The task list already contained uncommitted review-task additions, so its status update stays in the working tree and is not part of this task's commit. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: TASK-019 remains pending.
 ---
+## 2026-10-23 11:02:30 EEST
+- Task id: TASK-019
+- What was implemented:
+  - Confirmed that real Claude Code 2.1.309 exits 1 with JSON `is_error: true` and subtype `error_max_turns` for a max-turns failure.
+  - On a non-zero exit code, report a structured adapter failure reason when present; preserve exit-code errors for other output and signal exits.
+  - Updated the AC-008 table to describe the deliberate non-zero exit exception.
+- Files changed:
+  - src/session.ts
+  - test/session.test.ts
+  - test/harness.test.ts
+  - specs/agent-adapters.spec.md
+  - specs/agent-adapters.smoke-check.md
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - RED: focused `pnpm exec vitest run` showed the adapter-reported failure on exit 1 was incorrectly classified as exit code 1.
+  - GREEN: `pnpm exec vitest run test/session.test.ts test/harness.test.ts` passed (61 tests).
+  - `pnpm typecheck` passed; `pnpm test` passed (20 files, 268 tests); `git diff --check` passed.
+  - Claude fixture exit 1 with `error_max_turns` reports its subtype and stderr tail; malformed JSON and a valid protocol response on exit 1 retain the exit-code error and stderr tail.
+  - A self-signaling process with an adapter that throws if called proves signal exits skip extraction; existing Codex fixture exit 3 scenario remains passing.
+  - Independent read-only review found no code blocker; its requested spec clarification was added.
+- Learnings for future iterations:
+  - Claude Code can emit structured `is_error` JSON with a non-zero process exit. Preserve the exit-code classification for any other output.
+- Scope deviations:
+  - The task list already contained uncommitted review-task additions, so its status update stays in the working tree and is not part of this task's commit. The pre-existing untracked prompt.txt was not changed.
+- Follow up needed: TASK-020 and TASK-021 remain pending.
+---

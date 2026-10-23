@@ -104,6 +104,30 @@ describe('runSession', () => {
     }, stderrTail: [] });
   });
 
+  it('uses an adapter-reported failure on a non-zero exit', async () => {
+    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => ({ kind: 'failed', reason: 'r' }) };
+    const { result } = await invoke({ stdout: 'anything', exitCode: 1, stderr: 'detail\n' }, { agent });
+    expect(result).toEqual({ kind: 'execution-error', error: {
+      kind: 'agent-reported-error', reason: 'r',
+    }, stderrTail: ['detail'] });
+  });
+
+  it('does not extract stdout after a signal exit', async () => {
+    const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => {
+      throw new Error('stdout must not be extracted after a signal');
+    } };
+    const result = await runSession({
+      agent,
+      executable: process.execPath,
+      leadingArgs: ['-e', "process.stdout.write('anything'); process.kill(process.pid, 'SIGTERM')"],
+      cwd: os.tmpdir(),
+      prompt: 'x',
+    });
+    expect(result).toEqual({ kind: 'execution-error', error: {
+      kind: 'exited-unsuccessfully', exitCode: null, signal: 'SIGTERM',
+    }, stderrTail: [] });
+  });
+
   it('maps adapter-invalid output to an invalid response', async () => {
     const agent: AgentAdapter = { ...codexAdapter, extractFinalMessage: () => ({ kind: 'invalid', reason: 'bad JSON' }) };
     const { result } = await invoke({ stdout: 'anything' }, { agent });

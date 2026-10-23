@@ -35,11 +35,13 @@ As a developer who uses Claude Code, I want `afk` to drive Claude Code sessions,
   | Claude session result | Execution error |
   | --- | --- |
   | Process could not be started | launch failed |
-  | Non-zero exit code or terminated by a signal | exited unsuccessfully (with exit code or signal) |
+  | Non-zero exit code without a structured `is_error: true` result, or terminated by a signal | exited unsuccessfully (with exit code or signal) |
   | Exit code `0`, stdout is not valid JSON | invalid response (agent output could not be parsed) |
-  | Exit code `0`, JSON result reports `is_error: true` | exited unsuccessfully, with Claude's reported `subtype` included in the reported reason |
+  | JSON result reports `is_error: true` on exit code `0` or a non-zero exit | exited unsuccessfully, with Claude's reported `subtype` included in the reported reason |
   | Exit code `0`, stdout empty or JSON has no non-empty `result` string | missing response |
   | `result` text violates the code skill protocol | invalid response (existing protocol reasons) |
+
+  A structured `is_error: true` result on a non-zero exit is a deliberate exception to the earlier rule that every non-zero exit is reported only with its exit code.
 
 - **AC-009:** Given a Claude session, when the session timeout expires or the user presses Ctrl+C, then `afk` terminates it and ends the run exactly as it does for Codex: same messages, no retry, and the same exit codes.
 

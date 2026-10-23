@@ -57,4 +57,7 @@ Observed exit code: `1`. **PASS**.
 
 ## Follow-up fixes
 
-None.
+On 2026-10-23, Claude Code `2.1.309` was run in an empty scratch directory with
+`claude -p --output-format json --max-turns 1 "Use a tool to list files in this empty directory, then summarize what you found."`.
+It exited with code `1` and wrote parseable JSON to stdout with `is_error: true`
+and `subtype: "error_max_turns"`. This confirms the prerequisite for TASK-019.
