@@ -626,7 +626,7 @@
       "id": "TASK-015",
       "title": "Run the manual smoke check against the real agents",
       "objective": "Run the AC-027 manual smoke checks with the real Codex and Claude Code CLIs and record the evidence with CLI versions in specs/agent-adapters.smoke-check.md.",
-      "status": "pending",
+      "status": "completed",
       "story_addressed": "US-007",
       "requirements_addressed": ["AC-027"],
       "out_of_scope": [

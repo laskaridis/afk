@@ -387,3 +387,24 @@
   - None. The pre-existing untracked prompt.txt was not changed.
 - Follow up needed: None.
 ---
+
+## 2026-10-23 10:09 EEST
+- Task id: TASK-015
+- What was implemented:
+  - Ran the manual AC-027 smoke checks against the installed Codex and Claude Code CLIs in a scratch workspace and recorded the observed results.
+- Files changed:
+  - specs/agent-adapters.smoke-check.md
+  - specs/agent-adapters.tasks.json
+  - progress.txt
+- Verification:
+  - `pnpm build` passed. `codex --version` reported `codex-cli 0.162.1`; `claude --version` reported `2.1.307 (Claude Code)`.
+  - `codex exec --approve-for-me -o out.txt -` exited 0; piped stdout and `out.txt` both contained `hello` followed by a newline.
+  - `afk --agent codex` and `afk --agent claude` each emitted one iteration line and a `Run blocked` line, exited 1, and produced no stdout.
+  - `pnpm typecheck` passed; `pnpm test` passed with 20 files and 263 tests.
+  - Checked that only the smoke-check evidence and authorized task bookkeeping were changed; the pre-existing untracked prompt.txt was untouched.
+- Learnings for future iterations:
+  - A fresh scratch directory must be initialized as a Git repository for the Codex CLI smoke check.
+- Scope deviations:
+  - None. The task list and progress log are authorized bookkeeping files required by the code skill.
+- Follow up needed: None.
+---
