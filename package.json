@@ -19,7 +19,8 @@
     "test": "vitest run",
     "lint": "biome lint .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.2",

@@ -26,7 +26,4 @@ jobs:
       # Match the release workflow: npm 12 changes the output shape of `npm pack --json`.
       - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm format:check
-      - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm verify
