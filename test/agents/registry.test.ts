@@ -29,7 +29,8 @@ describe('agent registry', () => {
   });
 
   it('exports the adapter contracts', () => {
-    const adapter: AgentAdapter = getAgent(DEFAULT_AGENT)!;
+    const adapter: AgentAdapter | undefined = getAgent(DEFAULT_AGENT);
+    if (!adapter) throw new Error('default agent is not registered');
     const result: FinalMessageResult = adapter.extractFinalMessage('');
     expect(result).toEqual({ kind: 'missing' });
   });

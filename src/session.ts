@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { AgentAdapter } from './agents/types.js';
 import type { ExecutionError, SessionResult } from './outcomes.js';
 import { parseProtocolResponse } from './protocol.js';
@@ -47,7 +47,7 @@ export async function runSession(request: SessionRequest): Promise<SessionResult
   })];
 
   const processResult = await new Promise<ProcessResult>(resolve => {
-    let child;
+    let child: ChildProcessWithoutNullStreams;
     try {
       child = spawn(request.executable ?? request.agent.executable, args, {
         cwd: request.cwd,

@@ -22,6 +22,7 @@ export async function runLoop(
     const result = await runSession();
 
     switch (result.kind) {
+      // biome-ignore lint/suspicious/noFallthroughSwitchClause: the inner switch over response.outcome is exhaustive
       case 'response':
         consecutiveExecutionErrors = 0;
         isRetry = false;
